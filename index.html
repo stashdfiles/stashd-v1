@@ -931,21 +931,24 @@ function uploadTrackAudio(file,trackId,trackRef){
   fetch(SB_URL+"/storage/v1/object/audio-files/"+path,{
     method:"POST",
     headers:{
+      "apikey":SB_KEY,
       "Authorization":"Bearer "+currentSession.access_token,
       "Content-Type":file.type||"audio/mpeg"
     },
     body:file
   }).then(function(r){
-    if(r.ok){
+    return r.text().then(function(text){return {ok:r.ok,status:r.status,text:text};});
+  }).then(function(res){
+    if(res.ok){
       trackRef.storage_path=path;
       trackRef.uploading=false;
       saveStashes();
       var badge=document.getElementById("upload-badge-"+trackId);if(badge)badge.remove();
     }else{
       trackRef.uploading=false;
-      console.error("upload failed for track",trackId);
+      console.error("upload failed for track",trackId,res.status,res.text);
     }
-  }).catch(function(){trackRef.uploading=false;});
+  }).catch(function(err){trackRef.uploading=false;console.error("upload network error",err);});
 }
 
 function getTrackPlaybackUrl(track){
@@ -953,36 +956,63 @@ function getTrackPlaybackUrl(track){
   return fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
     method:"POST",
     headers:{
+      "apikey":SB_KEY,
       "Authorization":"Bearer "+currentSession.access_token,
       "Content-Type":"application/json"
     },
     body:JSON.stringify({expiresIn:3600})
-  }).then(function(r){return r.json();})
+  }).then(function(r){
+    return r.text().then(function(text){
+      var data=null;
+      try{data=text?JSON.parse(text):null;}catch(e){}
+      if(!r.ok){
+        console.error("signed url request failed",r.status,text);
+      }
+      return data;
+    });
+  })
   .then(function(data){
-    if(data.signedURL)return SB_URL+"/storage/v1"+data.signedURL;
-    return track.src||null;
-  }).catch(function(){return track.src||null;});
+    if(data&&data.signedURL)return SB_URL+"/storage/v1"+data.signedURL;
+    console.error("no signedURL in response for",track.storage_path,data);
+    return null;
+  }).catch(function(err){
+    console.error("getTrackPlaybackUrl network error",err);
+    return null;
+  });
 }
 
 function deleteCloudAudio(path){
   if(!currentSession)return;
   fetch(SB_URL+"/storage/v1/object/audio-files/"+path,{
     method:"DELETE",
-    headers:{"Authorization":"Bearer "+currentSession.access_token}
-  }).catch(function(){});
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token}
+  }).catch(function(err){console.error("delete cloud audio error",err);});
 }
 
 function restoreCloudAudio(){
   if(!currentSession||!currentSession.user)return;
+  var pending=[];
   S.stashes.forEach(function(f){
     f.tracks.forEach(function(t){
       if(t.storage_path&&!t.src){
-        getTrackPlaybackUrl(t).then(function(url){
-          if(url)t.src=url;
-        });
+        pending.push(
+          getTrackPlaybackUrl(t).then(function(url){
+            if(url){t.src=url;return true;}
+            return false;
+          })
+        );
       }
     });
   });
+  if(pending.length){
+    Promise.all(pending).then(function(results){
+      var failed=results.filter(function(r){return !r;}).length;
+      if(failed>0){
+        console.error(failed+" track(s) failed to restore from cloud storage");
+      }
+      render();
+    });
+  }
 }
 function handleArt(e,fid){
   var file=e.target.files[0];if(!file)return;var f=gS(fid);if(!f)return;
