@@ -710,7 +710,7 @@ function saveStashes(){
     // save stashes without blob URLs (those don't persist) - save art as dataURL
     var toSave=S.stashes.map(function(f){
       return {id:f.id,name:f.name,art:f.art||null,
-        tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||""};})};
+        tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
     });
     localStorage.setItem("stashd_stashes",JSON.stringify({stashes:toSave,nid:S.nid,nsid:S.nsid}));
   }catch(e){}
@@ -844,17 +844,32 @@ function playTrack(fid,tid){
     // file is in memory cache - create fresh blob url
     var freshUrl=URL.createObjectURL(fileCache[t.filename]);
     t.src=freshUrl;doPlay(freshUrl);
-  } else if(t.src){
-    // try existing src - may work if app hasn't been closed
+  } else if(t.src&&t.src.startsWith("blob:")){
+    // try existing blob src - may work if app hasn't been closed
     aud.src=t.src;aud.playbackRate=S.speed;aud.load();
     if(!linked)linkSrc();else applyEff();
     if(actx&&actx.state==="suspended")actx.resume();
     aud.play().catch(function(err){
-      // blob expired - show reload prompt
-      showReloadPrompt(t.fid);
+      // blob expired - try cloud storage before giving up
+      if(t.storage_path){
+        getTrackPlaybackUrl(t).then(function(url){
+          if(url){t.src=url;doPlay(url);}
+          else showReloadPrompt(t.fid);
+        });
+      }else{
+        showReloadPrompt(t.fid);
+      }
     });
+  } else if(t.storage_path){
+    // cloud-stored track - fetch a fresh signed url and play directly
+    getTrackPlaybackUrl(t).then(function(url){
+      if(url){t.src=url;doPlay(url);}
+      else showReloadPrompt(t.fid);
+    });
+  } else if(t.src){
+    doPlay(t.src);
   } else if(t.filename){
-    // no src at all - need files reloaded
+    // no src and no cloud copy - need files reloaded
     showReloadPrompt(t.fid);
   }
   setPlayUI(true);document.getElementById("eq-anim").classList.add("show");document.getElementById("aura").style.display="block";
@@ -888,8 +903,86 @@ function handleAudio(e,fid){
   var files=Array.from(e.target.files);
   var target=fid!=null?gS(fid):(S.activeStash!=null?gS(S.activeStash):S.stashes[0]);
   if(!target){S.stashes.push({id:S.nsid++,name:"my stash",art:null,tracks:[]});target=S.stashes[0];}
-  files.forEach(function(file){var url=URL.createObjectURL(file);var name=file.name.replace(/\.[^.]+$/,"").replace(/[_-]/g," ").toLowerCase();target.tracks.push({id:S.nid++,title:name,artist:"imported",dur:"\u2014",src:url});});
+  files.forEach(function(file){
+    var url=URL.createObjectURL(file);
+    var name=file.name.replace(/\.[^.]+$/,"").replace(/[_-]/g," ").toLowerCase();
+    var trackId=S.nid++;
+    var newTrack={id:trackId,title:name,artist:"imported",dur:"—",src:url,filename:file.name,notes:"",uploading:true};
+    target.tracks.push(newTrack);
+    uploadTrackAudio(file,trackId,newTrack);
+    (function(track,blobUrl){
+      var tmpAud=new Audio(blobUrl);
+      tmpAud.onloadedmetadata=function(){
+        track.dur=fmt(tmpAud.duration);
+        tmpAud=null;
+        var durEl=document.getElementById("dur-"+track.id);
+        if(durEl)durEl.textContent=track.dur;
+      };
+    })(newTrack,url);
+  });
   e.target.value="";saveStashes();render();
+}
+
+/* ── CLOUD AUDIO STORAGE ── */
+function uploadTrackAudio(file,trackId,trackRef){
+  if(!currentSession||!currentSession.user)return;
+  var ext=file.name.split(".").pop();
+  var path=currentSession.user.id+"/"+trackId+"."+ext;
+  fetch(SB_URL+"/storage/v1/object/audio-files/"+path,{
+    method:"POST",
+    headers:{
+      "Authorization":"Bearer "+currentSession.access_token,
+      "Content-Type":file.type||"audio/mpeg"
+    },
+    body:file
+  }).then(function(r){
+    if(r.ok){
+      trackRef.storage_path=path;
+      trackRef.uploading=false;
+      saveStashes();
+      var badge=document.getElementById("upload-badge-"+trackId);if(badge)badge.remove();
+    }else{
+      trackRef.uploading=false;
+      console.error("upload failed for track",trackId);
+    }
+  }).catch(function(){trackRef.uploading=false;});
+}
+
+function getTrackPlaybackUrl(track){
+  if(!track.storage_path||!currentSession)return Promise.resolve(track.src||null);
+  return fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
+    method:"POST",
+    headers:{
+      "Authorization":"Bearer "+currentSession.access_token,
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify({expiresIn:3600})
+  }).then(function(r){return r.json();})
+  .then(function(data){
+    if(data.signedURL)return SB_URL+"/storage/v1"+data.signedURL;
+    return track.src||null;
+  }).catch(function(){return track.src||null;});
+}
+
+function deleteCloudAudio(path){
+  if(!currentSession)return;
+  fetch(SB_URL+"/storage/v1/object/audio-files/"+path,{
+    method:"DELETE",
+    headers:{"Authorization":"Bearer "+currentSession.access_token}
+  }).catch(function(){});
+}
+
+function restoreCloudAudio(){
+  if(!currentSession||!currentSession.user)return;
+  S.stashes.forEach(function(f){
+    f.tracks.forEach(function(t){
+      if(t.storage_path&&!t.src){
+        getTrackPlaybackUrl(t).then(function(url){
+          if(url)t.src=url;
+        });
+      }
+    });
+  });
 }
 function handleArt(e,fid){
   var file=e.target.files[0];if(!file)return;var f=gS(fid);if(!f)return;
@@ -919,7 +1012,7 @@ function askDelS(id){
 function askDelT(fid,tid){
   var t=gT(fid,tid);if(!t)return;
   document.getElementById("del-t-msg").textContent="remove \""+t.title+"\"?";
-  document.getElementById("del-t-ok").onclick=function(){var f=gS(fid);if(!f)return;if(S.cur&&S.cur.tid===tid&&S.cur.fid===fid)stopCurrent();f.tracks=f.tracks.filter(function(x){return x.id!==tid;});saveStashes();hideOv("ov-del-t");render();};
+  document.getElementById("del-t-ok").onclick=function(){var f=gS(fid);if(!f)return;if(S.cur&&S.cur.tid===tid&&S.cur.fid===fid)stopCurrent();var delTrack=f.tracks.find(function(x){return x.id===tid;});if(delTrack&&delTrack.storage_path)deleteCloudAudio(delTrack.storage_path);f.tracks=f.tracks.filter(function(x){return x.id!==tid;});saveStashes();hideOv("ov-del-t");render();};
   showOv("ov-del-t");
 }
 function openShare(fid,e){
@@ -2599,6 +2692,7 @@ function enterApp(){
     var us=document.getElementById("username-screen");if(us)us.style.display="none";
     var ap=document.getElementById("app");if(ap)ap.style.display="";
     loadMyFollowing();
+    restoreCloudAudio();
   });
 }
 
