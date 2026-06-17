@@ -2673,6 +2673,33 @@ function checkSession(){
   }catch(e){return false;}
 }
 
+function refreshSession(){
+  if(!currentSession||!currentSession.refresh_token)return Promise.resolve(false);
+  return fetch(SB_URL+"/auth/v1/token?grant_type=refresh_token",{
+    method:"POST",
+    headers:{"apikey":SB_KEY,"Content-Type":"application/json"},
+    body:JSON.stringify({refresh_token:currentSession.refresh_token})
+  }).then(function(r){return r.json().then(function(data){return {ok:r.ok,data:data};});})
+  .then(function(res){
+    if(!res.ok||!res.data.access_token){
+      // refresh token itself is dead - force a clean re-login
+      logOut();
+      return false;
+    }
+    saveSession({
+      access_token:res.data.access_token,
+      refresh_token:res.data.refresh_token||currentSession.refresh_token,
+      user:res.data.user||currentSession.user
+    });
+    return true;
+  }).catch(function(){return false;});
+}
+
+// silently refresh the token every 45 minutes so the session never visibly expires
+setInterval(function(){
+  if(currentSession)refreshSession();
+},45*60*1000);
+
 function logOut(){
   try{localStorage.removeItem("stashd_session");}catch(e){}
   currentSession=null;
@@ -2729,12 +2756,17 @@ function handleOAuthRedirect(){
 function initAuth(){
   if(handleOAuthRedirect())return;
   if(checkSession()){
-    if(!currentSession.user||!currentSession.user.id){
+    if(!currentSession.user||!currentSession.user.id||!currentSession.refresh_token){
+      // old/incompatible session from before refresh support - force a clean re-login once
       try{localStorage.removeItem("stashd_session");}catch(e){}
       currentSession=null;
       var as0=document.getElementById("auth-screen");if(as0)as0.style.display="flex";
     }else{
-      enterApp();
+      // refresh proactively on open in case the token aged out while the browser was closed
+      refreshSession().then(function(success){
+        if(success)enterApp();
+        // if refresh failed, logOut() already ran inside refreshSession and shows the login screen
+      });
     }
   }else{
     var as=document.getElementById("auth-screen");if(as)as.style.display="flex";
