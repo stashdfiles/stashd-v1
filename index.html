@@ -279,6 +279,8 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 .auth-msg{font-size:12px;text-align:center;margin-top:10px;min-height:16px}
 .auth-forgot{text-align:center;font-size:11px;color:var(--t3);margin-top:12px;cursor:pointer}
 .auth-forgot:hover{color:var(--t2)}
+.discord-login-btn{width:100%;background:#5865F2;color:#fff;padding:12px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;border:none;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s}
+.discord-login-btn:hover{opacity:.9}
 .user-card{display:flex;align-items:center;gap:12px;background:var(--c1);border:0.5px solid var(--b2);border-radius:12px;padding:12px 14px;margin-bottom:8px;transition:border-color .15s}
 .user-card:hover{border-color:var(--b3)}
 .user-card-pic{width:42px;height:42px;border-radius:50%;background:var(--c2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:var(--t2)}
@@ -422,14 +424,13 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 <div class="auth-screen" id="auth-screen" style="display:none">
   <div class="auth-box">
     <div class="auth-logo"><img src="logo.png" alt=""><span>stash'd</span></div>
-    <div class="auth-title" id="auth-title">welcome back</div>
-    <div class="auth-sub" id="auth-sub">log in to continue</div>
-    <input type="email" id="auth-email" class="auth-input" placeholder="email" autocomplete="email">
-    <input type="password" id="auth-password" class="auth-input" placeholder="password" autocomplete="current-password">
-    <button class="auth-btn" id="auth-submit-btn" onclick="submitAuth()">log in</button>
+    <div class="auth-title" id="auth-title">welcome to stash'd</div>
+    <div class="auth-sub" id="auth-sub">sign in to save your stashes and follow others</div>
+    <button class="discord-login-btn" onclick="loginWithDiscord()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.04.033.05a19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
+      continue with discord
+    </button>
     <div class="auth-msg" id="auth-msg"></div>
-    <div class="auth-forgot" id="auth-forgot" onclick="forgotPassword()">forgot password?</div>
-    <div class="auth-switch" id="auth-switch">don't have an account? <a onclick="toggleAuthMode()">sign up</a></div>
   </div>
 </div>
 
@@ -2582,10 +2583,9 @@ function checkSession(){
 function logOut(){
   try{localStorage.removeItem("stashd_session");}catch(e){}
   currentSession=null;
-  var as=document.getElementById("auth-screen");if(as)as.style.display="flex";
+  var us=document.getElementById("username-screen");if(us)us.style.display="none";
   var ap=document.getElementById("app");if(ap)ap.style.display="none";
-  document.getElementById("auth-email").value="";
-  document.getElementById("auth-password").value="";
+  var as=document.getElementById("auth-screen");if(as)as.style.display="flex";
 }
 
 function enterApp(){
@@ -2602,10 +2602,40 @@ function enterApp(){
   });
 }
 
+function loginWithDiscord(){
+  var redirectTo=window.location.origin+window.location.pathname;
+  var url=SB_URL+"/auth/v1/authorize?provider=discord&redirect_to="+encodeURIComponent(redirectTo);
+  window.location.href=url;
+}
+
+function handleOAuthRedirect(){
+  // Supabase returns tokens in the URL hash after OAuth redirect
+  if(window.location.hash&&window.location.hash.includes("access_token")){
+    var params=new URLSearchParams(window.location.hash.substring(1));
+    var access_token=params.get("access_token");
+    var refresh_token=params.get("refresh_token");
+    if(access_token){
+      // fetch user info using the token
+      fetch(SB_URL+"/auth/v1/user",{
+        headers:{"apikey":SB_KEY,"Authorization":"Bearer "+access_token}
+      }).then(function(r){return r.json();})
+      .then(function(user){
+        saveSession({access_token:access_token,refresh_token:refresh_token,user:user});
+        window.history.replaceState({},document.title,window.location.pathname+window.location.search);
+        enterApp();
+      }).catch(function(){
+        var as=document.getElementById("auth-screen");if(as)as.style.display="flex";
+      });
+      return true;
+    }
+  }
+  return false;
+}
+
 function initAuth(){
+  if(handleOAuthRedirect())return;
   if(checkSession()){
     if(!currentSession.user||!currentSession.user.id){
-      // stale session from before user object was saved - clear and force re-login
       try{localStorage.removeItem("stashd_session");}catch(e){}
       currentSession=null;
       var as0=document.getElementById("auth-screen");if(as0)as0.style.display="flex";
@@ -2615,7 +2645,6 @@ function initAuth(){
   }else{
     var as=document.getElementById("auth-screen");if(as)as.style.display="flex";
   }
-  document.getElementById("auth-password").addEventListener("keydown",function(e){if(e.key==="Enter")submitAuth();});
 }
 
 
