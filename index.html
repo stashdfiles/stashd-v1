@@ -952,8 +952,28 @@ function uploadTrackAudio(file,trackId,trackRef){
   }).catch(function(err){trackRef.uploading=false;console.error("upload network error",err);});
 }
 
+function showDebugMsg(msg){
+  var box=document.getElementById("temp-error-box");
+  if(!box){
+    box=document.createElement("div");
+    box.id="temp-error-box";
+    box.style.cssText="position:fixed;top:0;left:0;right:0;background:#3a0a0a;color:#fff;padding:14px;font-family:monospace;font-size:12px;z-index:99999;white-space:pre-wrap;max-height:50vh;overflow:auto;border-bottom:3px solid #e24b4a";
+    document.body.appendChild(box);
+  }
+  var line=document.createElement("div");
+  line.style.marginBottom="8px";
+  line.textContent=msg;
+  box.appendChild(line);
+}
+
 function getTrackPlaybackUrl(track){
-  if(!track.storage_path||!currentSession)return Promise.resolve(track.src||null);
+  if(!track.storage_path||!currentSession){
+    showDebugMsg("getTrackPlaybackUrl: no storage_path or no session. storage_path="+track.storage_path+" hasSession="+(!!currentSession));
+    return Promise.resolve(track.src||null);
+  }
+  if(!currentSession.access_token){
+    showDebugMsg("getTrackPlaybackUrl: currentSession exists but has no access_token");
+  }
   return fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
     method:"POST",
     headers:{
@@ -967,17 +987,17 @@ function getTrackPlaybackUrl(track){
       var data=null;
       try{data=text?JSON.parse(text):null;}catch(e){}
       if(!r.ok){
-        console.error("signed url request failed",r.status,text);
+        showDebugMsg("SIGN URL FAILED status="+r.status+" path="+track.storage_path+" body="+text.slice(0,200));
       }
       return data;
     });
   })
   .then(function(data){
     if(data&&data.signedURL)return SB_URL+"/storage/v1"+data.signedURL;
-    console.error("no signedURL in response for",track.storage_path,data);
+    showDebugMsg("SIGN URL: no signedURL field. path="+track.storage_path+" response="+JSON.stringify(data).slice(0,200));
     return null;
   }).catch(function(err){
-    console.error("getTrackPlaybackUrl network error",err);
+    showDebugMsg("SIGN URL network error: "+(err&&err.message?err.message:err));
     return null;
   });
 }
