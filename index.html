@@ -2293,7 +2293,9 @@ function resetCustomGrad(){
 var profEffect="none";
 var profEffects=["none","shimmer","pulse","glow","rainbow","stars"];
 function setProfEffect(e){
-  profEffect=e;try{localStorage.setItem("stashd_prof_effect",e);}catch(err){}renderProfile();
+  profEffect=e;try{localStorage.setItem("stashd_prof_effect",e);}catch(err){}
+  pushPublicProfileCosmetics();
+  renderProfile();
 }
 (function(){try{var pe=localStorage.getItem("stashd_prof_effect");if(pe)profEffect=pe;}catch(e){}})();
 
@@ -2466,15 +2468,29 @@ function removeBgImage(){
 }
 
 /* ── PROFILE THEME ── */
+function pushPublicProfileCosmetics(){
+  if(!currentSession||!currentSession.user)return;
+  sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",{
+    prof_theme:profTheme,
+    name_tag_text:nameTag.text||null,
+    name_tag_color:nameTag.color||null,
+    prof_effect:profEffect
+  }).catch(function(err){console.error("pushPublicProfileCosmetics failed",err);});
+}
+
 function setProfTheme(t){
   profTheme=t;
   try{localStorage.setItem("stashd_prof_theme",t);}catch(e){}
+  pushPublicProfileCosmetics();
   renderProfile();
 }
 (function(){try{var pt=localStorage.getItem("stashd_prof_theme");if(pt)profTheme=pt;}catch(e){}})();
 
 /* ── NAME TAG SAVE ── */
-function saveNameTag(){try{localStorage.setItem("stashd_nametag",JSON.stringify(nameTag));}catch(e){}}
+function saveNameTag(){
+  try{localStorage.setItem("stashd_nametag",JSON.stringify(nameTag));}catch(e){}
+  pushPublicProfileCosmetics();
+}
 (function(){try{var nt=localStorage.getItem("stashd_nametag");if(nt)nameTag=JSON.parse(nt);}catch(e){}})();
 
 /* ── EQ PRESETS ── */
@@ -3285,6 +3301,14 @@ function renderPublicProfile(){
   wrap.appendChild(loadingMsg);
   c.appendChild(wrap);
 
+  var pthemesList=[
+    {id:"default",bg:"#111",ac:"#e8e8e8"},{id:"purple",bg:"linear-gradient(135deg,#13102a,#09060f)",ac:"#a78bfa"},
+    {id:"blue",bg:"linear-gradient(135deg,#0f1e32,#060a0f)",ac:"#60a5fa"},{id:"green",bg:"linear-gradient(135deg,#0f2818,#060f08)",ac:"#34d399"},
+    {id:"rose",bg:"linear-gradient(135deg,#2a0f18,#0f0608)",ac:"#f472b6"},{id:"gold",bg:"linear-gradient(135deg,#2a2000,#0a0800)",ac:"#f0c96e"},
+    {id:"midnight",bg:"linear-gradient(135deg,#0a1828,#020408)",ac:"#38bdf8"},{id:"ember",bg:"linear-gradient(135deg,#2a1000,#0a0400)",ac:"#fb923c"},
+    {id:"crimson",bg:"linear-gradient(135deg,#2a0a0a,#0f0404)",ac:"#f87171"},{id:"void",bg:"linear-gradient(135deg,#0c0c0c,#000)",ac:"#fff"}
+  ];
+
   var userId=viewingProfileId;
   if(!userId){
     wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>no profile selected</div>";
@@ -3306,27 +3330,37 @@ function renderPublicProfile(){
       return getFollowCounts(userId).then(function(counts){
         wrap.innerHTML="";
 
+        var pt=pthemesList.find(function(x){return x.id===(u.prof_theme||"default");})||pthemesList[0];
+
         var card=document.createElement("div");
-        card.style.cssText="background:var(--c1);border:0.5px solid var(--b2);border-radius:16px;padding:24px;margin-bottom:20px";
+        card.style.cssText="position:relative;background:"+pt.bg+";border:0.5px solid rgba(255,255,255,.08);border-radius:16px;padding:24px;margin-bottom:20px;overflow:hidden";
         var hero=document.createElement("div");hero.style.cssText="display:flex;align-items:flex-start;gap:18px";
-        var pic=document.createElement("div");pic.style.cssText="width:72px;height:72px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--c2);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:var(--t2)";
+        var pic=document.createElement("div");pic.style.cssText="width:72px;height:72px;border:2px solid "+pt.ac+";border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--c2);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:"+pt.ac;
         if(u.pic){var img=document.createElement("img");img.src=u.pic;img.style.cssText="width:100%;height:100%;object-fit:cover";pic.appendChild(img);}
         else{pic.textContent=u.username[0].toUpperCase();}
         var info=document.createElement("div");info.style.cssText="flex:1;min-width:0";
-        var name=document.createElement("div");name.style.cssText="font-size:18px;font-weight:700;color:var(--t1);margin-bottom:4px";name.textContent="@"+u.username;
-        var bio=document.createElement("div");bio.style.cssText="font-size:13px;color:var(--t2);margin-bottom:12px";bio.textContent=u.bio||"";
+        var nameRow=document.createElement("div");nameRow.style.cssText="display:flex;align-items:center;gap:6px;margin-bottom:4px";
+        var name=document.createElement("div");name.style.cssText="font-size:18px;font-weight:700;color:#fff";name.textContent="@"+u.username;
+        nameRow.appendChild(name);
+        if(u.name_tag_text){
+          var tag=document.createElement("span");tag.textContent=u.name_tag_text;
+          var tagColor=u.name_tag_color||"#c9a84c";
+          tag.style.cssText="background:"+tagColor+"22;color:"+tagColor+";border:0.5px solid "+tagColor+"44;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0";
+          nameRow.appendChild(tag);
+        }
+        var bio=document.createElement("div");bio.style.cssText="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:12px";bio.textContent=u.bio||"";
         var statsRow=document.createElement("div");statsRow.style.cssText="display:flex;gap:20px";
 
         var followersStat=document.createElement("div");followersStat.style.cssText="cursor:pointer";
-        followersStat.innerHTML="<span style='font-weight:700;color:var(--t1)'>"+counts.followers+"</span> <span style='color:var(--t3);font-size:12px'>followers</span>";
+        followersStat.innerHTML="<span style='font-weight:700;color:#fff'>"+counts.followers+"</span> <span style='color:rgba(255,255,255,.5);font-size:12px'>followers</span>";
         followersStat.onclick=function(){viewFollowList(userId,"followers",u.username);};
 
         var followingStat=document.createElement("div");followingStat.style.cssText="cursor:pointer";
-        followingStat.innerHTML="<span style='font-weight:700;color:var(--t1)'>"+counts.following+"</span> <span style='color:var(--t3);font-size:12px'>following</span>";
+        followingStat.innerHTML="<span style='font-weight:700;color:#fff'>"+counts.following+"</span> <span style='color:rgba(255,255,255,.5);font-size:12px'>following</span>";
         followingStat.onclick=function(){viewFollowList(userId,"following",u.username);};
 
         statsRow.appendChild(followersStat);statsRow.appendChild(followingStat);
-        info.appendChild(name);info.appendChild(bio);info.appendChild(statsRow);
+        info.appendChild(nameRow);info.appendChild(bio);info.appendChild(statsRow);
         hero.appendChild(pic);hero.appendChild(info);
         card.appendChild(hero);
 
@@ -3345,7 +3379,7 @@ function renderPublicProfile(){
         wrap.appendChild(card);
       });
     }).catch(function(err){
-      console.error('renderPublicProfile error',err);
+      console.error("renderPublicProfile error",err);
       wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>couldn't load profile</div>";
     });
 }
