@@ -839,8 +839,15 @@ function playTrack(fid,tid){
     var wasL=linked;aud.src=src;aud.playbackRate=S.speed;aud.load();
     if(!wasL)linkSrc();else applyEff();
     if(actx&&actx.state==="suspended")actx.resume();
-    aud.play().catch(function(){});
+    aud.play().catch(function(err){
+      showDebugMsg("PLAYBACK FAILED: "+(err&&err.name?err.name:"")+" - "+(err&&err.message?err.message:err)+" | src="+src.slice(0,120));
+    });
   }
+  aud.onerror=function(){
+    var errCode=aud.error?aud.error.code:"unknown";
+    var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
+    showDebugMsg("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
+  };
   if(t.filename&&fileCache[t.filename]){
     // file is in memory cache - create fresh blob url
     var freshUrl=URL.createObjectURL(fileCache[t.filename]);
