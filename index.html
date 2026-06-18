@@ -3284,6 +3284,10 @@ function pullCloudData(){
         }));
       }catch(e){}
     }
+    // keep profiles.is_pro in sync with user_data.is_pro on every login
+    sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",{
+      is_pro:!!row.is_pro
+    }).catch(function(err){console.error("is_pro sync to profiles failed",err);});
     return true;
   }).catch(function(err){console.error("cloud pull failed",err);return false;});
 }
