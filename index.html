@@ -825,9 +825,11 @@ function gS(id){return S.stashes.find(function(f){return f.id===id;});}
 function gT(fid,tid){var f=gS(fid);return f?f.tracks.find(function(t){return t.id===tid;}):null;}
 function allTracks(){return S.stashes.reduce(function(a,f){return a.concat(f.tracks.map(function(t){return Object.assign({},t,{fid:f.id,fn:f.name,fa:f.art});}));},[]); }
 
+var playRequestToken=0;
 function playTrack(fid,tid){
   var f=gS(fid),t=gT(fid,tid);if(!f||!t)return;
-  showDebugMsg("playTrack called: title="+t.title+" filename="+t.filename+" inFileCache="+(!!(t.filename&&fileCache[t.filename]))+" src="+(t.src?t.src.slice(0,60):"none")+" storage_path="+t.storage_path+" hasSession="+(!!currentSession));
+  playRequestToken++;
+  var myToken=playRequestToken;
   if(playTimer){clearInterval(playTimer);playTimer=null;}
   S.cur={fid:fid,tid:tid};S.playing=true;
   if(!S.playCounts[tid])S.playCounts[tid]=0;S.playCounts[tid]++;
@@ -837,14 +839,17 @@ function playTrack(fid,tid){
   if(f.art){var img=document.createElement("img");img.src=f.art;img.style.cssText="width:100%;height:100%;object-fit:cover";pa.appendChild(img);}
   else pa.innerHTML="<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' style='color:var(--t3)'><path d='M9 18V5l12-2v13'/><circle cx='6' cy='18' r='3'/><circle cx='18' cy='16' r='3'/></svg>";
   function doPlay(src){
+    if(myToken!==playRequestToken)return; // a newer play request superseded this one
     var wasL=linked;aud.src=src;aud.playbackRate=S.speed;aud.load();
     if(!wasL)linkSrc();else applyEff();
     if(actx&&actx.state==="suspended")actx.resume();
     aud.play().catch(function(err){
+      if(err&&err.name==="AbortError")return; // benign - a newer load took over
       showDebugMsg("PLAYBACK FAILED: "+(err&&err.name?err.name:"")+" - "+(err&&err.message?err.message:err)+" | src="+src.slice(0,120));
     });
   }
   aud.onerror=function(){
+    if(myToken!==playRequestToken)return;
     var errCode=aud.error?aud.error.code:"unknown";
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
     showDebugMsg("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
@@ -855,31 +860,34 @@ function playTrack(fid,tid){
     t.src=freshUrl;doPlay(freshUrl);
   } else if(t.src&&t.src.startsWith("blob:")){
     // try existing blob src - may work if app hasn't been closed
-    aud.src=t.src;aud.playbackRate=S.speed;aud.load();
-    if(!linked)linkSrc();else applyEff();
-    if(actx&&actx.state==="suspended")actx.resume();
-    aud.play().catch(function(err){
-      // blob expired - try cloud storage before giving up
-      if(t.storage_path){
-        getTrackPlaybackUrl(t).then(function(url){
-          if(url){t.src=url;doPlay(url);}
-          else showReloadPrompt(t.fid);
-        });
-      }else{
-        showReloadPrompt(t.fid);
-      }
-    });
+    if(myToken===playRequestToken){
+      aud.src=t.src;aud.playbackRate=S.speed;aud.load();
+      if(!linked)linkSrc();else applyEff();
+      if(actx&&actx.state==="suspended")actx.resume();
+      aud.play().catch(function(err){
+        if(myToken!==playRequestToken)return;
+        // blob expired - try cloud storage before giving up
+        if(t.storage_path){
+          getTrackPlaybackUrl(t).then(function(url){
+            if(myToken!==playRequestToken)return;
+            if(url){t.src=url;doPlay(url);}
+            else showReloadPrompt(t.fid);
+          });
+        }else{
+          showReloadPrompt(t.fid);
+        }
+      });
+    }
   } else if(t.storage_path){
     // cloud-stored track - fetch a fresh signed url and play directly
     getTrackPlaybackUrl(t).then(function(url){
+      if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
       if(url){
-        showDebugMsg("FULL SIGNED URL: "+url);
         t.src=url;doPlay(url);
       }
       else showReloadPrompt(t.fid);
     });
   } else if(t.src){
-    showDebugMsg("FULL EXISTING SRC: "+t.src);
     doPlay(t.src);
   } else if(t.filename){
     // no src and no cloud copy - need files reloaded
