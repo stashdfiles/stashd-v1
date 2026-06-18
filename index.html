@@ -1655,7 +1655,9 @@ function renderSettings(){
   logoutBtn.textContent="log out";logoutBtn.onclick=function(){if(confirm("log out of stashd?"))logOut();};
   var syncBtn=document.createElement("button");syncBtn.className="reset-btn";
   syncBtn.textContent="sync to cloud now";syncBtn.onclick=manualSyncNow;
-  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
+  var pullBtn=document.createElement("button");pullBtn.className="reset-btn";
+  pullBtn.textContent="pull from cloud now";pullBtn.onclick=manualPullNow;
+  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(pullBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
   wrap.appendChild(sw);c.appendChild(wrap);
 }
 
@@ -3147,6 +3149,17 @@ function manualSyncNow(){
   doCloudSync(true);
 }
 
+function manualPullNow(){
+  pullCloudData().then(function(success){
+    if(success){
+      render();
+      alert("pulled from cloud! profile name is now: "+S.profile.name);
+    }else{
+      alert("pull failed or no data found - check console for details");
+    }
+  });
+}
+
 function pullCloudData(){
   if(!currentSession||!currentSession.user)return Promise.resolve(false);
   return fetch(SB_URL+"/rest/v1/user_data?id=eq."+currentSession.user.id+"&select=*",{
@@ -3154,9 +3167,20 @@ function pullCloudData(){
       "apikey":SB_KEY,
       "Authorization":"Bearer "+currentSession.access_token
     }
-  }).then(function(r){return r.json();})
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("pullCloudData request failed",r.status,text);
+        return null;
+      }
+      try{return JSON.parse(text);}catch(e){console.error("pullCloudData parse error",text);return null;}
+    });
+  })
   .then(function(data){
-    if(!data||!data.length)return false;
+    if(!data||!data.length){
+      console.error("pullCloudData: no rows returned for user",currentSession.user.id);
+      return false;
+    }
     var row=data[0];
     if(row.stashes&&row.stashes.stashes){
       S.stashes=row.stashes.stashes;
