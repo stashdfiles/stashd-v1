@@ -1937,6 +1937,13 @@ function renderProfile(){
   }
   hero.appendChild(picWrap);hero.appendChild(infoCol);
   profCard.appendChild(hero);
+  if(currentSession&&currentSession.user){
+    var previewLink=document.createElement("div");
+    previewLink.style.cssText="margin-top:14px;font-size:11px;color:var(--t3);cursor:pointer;text-decoration:underline";
+    previewLink.textContent="preview how others see your profile";
+    previewLink.onclick=function(){viewPublicProfile(currentSession.user.id);};
+    profCard.appendChild(previewLink);
+  }
   var themeLabel=document.createElement("div");themeLabel.style.cssText="font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.8px;margin-top:16px;margin-bottom:6px";themeLabel.textContent="profile theme";
   var themeGrid=document.createElement("div");themeGrid.className="prof-theme-grid";
   pthemes.forEach(function(t){
@@ -2475,7 +2482,13 @@ function pushPublicProfileCosmetics(){
     name_tag_text:nameTag.text||null,
     name_tag_color:nameTag.color||null,
     prof_effect:profEffect
-  }).catch(function(err){console.error("pushPublicProfileCosmetics failed",err);});
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("pushPublicProfileCosmetics failed",r.status,text);
+      }
+    });
+  }).catch(function(err){console.error("pushPublicProfileCosmetics network error",err);});
 }
 
 function setProfTheme(t){
