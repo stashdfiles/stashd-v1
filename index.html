@@ -707,6 +707,15 @@ function loadProfile(){try{var p=localStorage.getItem("stashd_profile");if(p)S.p
 function saveProfile(){
   try{localStorage.setItem("stashd_profile",JSON.stringify(S.profile));}catch(e){}
   pushCloudSync();
+  // also write bio/pic to public profiles table so others can see it
+  if(currentSession&&currentSession.user){
+    sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",{
+      bio:S.profile.bio||null,
+      pic:S.profile.pic||null
+    }).then(function(r){
+      if(!r.ok)r.text().then(function(t){console.error("saveProfile->profiles patch failed",r.status,t);});
+    }).catch(function(err){console.error("saveProfile->profiles patch error",err);});
+  }
 }
 
 function saveStashesLocal(){
@@ -2894,6 +2903,19 @@ function enterApp(){
     var us=document.getElementById("username-screen");if(us)us.style.display="none";
     var ap=document.getElementById("app");if(ap)ap.style.display="";
     loadMyFollowing();
+    // load public profile cosmetics from profiles table
+    if(currentSession&&currentSession.user){
+      sbAuthedFetch("profiles?id=eq."+currentSession.user.id+"&select=prof_theme,name_tag_text,name_tag_color,prof_effect,bio,pic")
+        .then(function(r){return r.json();})
+        .then(function(data){
+          if(data&&data.length){
+            var row=data[0];
+            if(row.prof_theme){profTheme=row.prof_theme;try{localStorage.setItem("stashd_prof_theme",row.prof_theme);}catch(e){}}
+            if(row.prof_effect){profEffect=row.prof_effect;try{localStorage.setItem("stashd_prof_effect",row.prof_effect);}catch(e){}}
+            if(row.name_tag_text){nameTag.text=row.name_tag_text;nameTag.color=row.name_tag_color||nameTag.color;try{localStorage.setItem("stashd_nametag",JSON.stringify(nameTag));}catch(e){}}
+          }
+        }).catch(function(err){console.error("load cosmetics from profiles failed",err);});
+    }
     pullCloudData().then(function(){
       render();
       updateSidebarProfile();
