@@ -706,7 +706,7 @@ var dragFid=null;
 function loadProfile(){try{var p=localStorage.getItem("stashd_profile");if(p)S.profile=JSON.parse(p);}catch(e){}}
 function saveProfile(){try{localStorage.setItem("stashd_profile",JSON.stringify(S.profile));}catch(e){}}
 
-function saveStashes(){
+function saveStashesLocal(){
   try{
     // save stashes without blob URLs (those don't persist) - save art as dataURL
     var toSave=S.stashes.map(function(f){
@@ -716,14 +716,22 @@ function saveStashes(){
     localStorage.setItem("stashd_stashes",JSON.stringify({stashes:toSave,nid:S.nid,nsid:S.nsid}));
   }catch(e){}
 }
+function saveStashes(){
+  saveStashesLocal();
+  pushCloudSync();
+}
 function loadStashes(){
   try{
     var d=JSON.parse(localStorage.getItem("stashd_stashes")||"null");
     if(d&&d.stashes){S.stashes=d.stashes;S.nid=d.nid||1;S.nsid=d.nsid||1;}
   }catch(e){}
 }
-function saveMeta(){
+function saveMetaLocal(){
   try{localStorage.setItem("stashd_meta",JSON.stringify({liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts}));}catch(e){}
+}
+function saveMeta(){
+  saveMetaLocal();
+  pushCloudSync();
 }
 function loadMeta(){
   try{
@@ -2831,12 +2839,15 @@ function enterApp(){
     var us=document.getElementById("username-screen");if(us)us.style.display="none";
     var ap=document.getElementById("app");if(ap)ap.style.display="";
     loadMyFollowing();
-    restoreCloudAudio();
-    if(pendingShareCode){
-      var codeToImport=pendingShareCode;
-      pendingShareCode=null;
-      importCode(codeToImport);
-    }
+    pullCloudData().then(function(){
+      render();
+      restoreCloudAudio();
+      if(pendingShareCode){
+        var codeToImport=pendingShareCode;
+        pendingShareCode=null;
+        importCode(codeToImport);
+      }
+    });
   });
 }
 
@@ -3063,6 +3074,85 @@ document.addEventListener("keydown",function(e){
   if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(e.key==="I"||e.key==="i"||e.key==="J"||e.key==="j"||e.key==="C"||e.key==="c")){e.preventDefault();return false;}
   if((e.ctrlKey||e.metaKey)&&(e.key==="u"||e.key==="U")){e.preventDefault();return false;}
 });
+
+
+/* ── ACCOUNT-LEVEL SYNC (stashes + premium follow the account, not the device) ── */
+var cloudSyncTimer=null;
+var cloudSyncInProgress=false;
+
+function pushCloudSync(){
+  if(!currentSession||!currentSession.user)return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(function(){
+    if(!currentSession||!currentSession.user)return;
+    var toSaveStashes=S.stashes.map(function(f){
+      return {id:f.id,name:f.name,art:f.art||null,
+        tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
+    });
+    var metaPayload={liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts};
+    var body={
+      id:currentSession.user.id,
+      stashes:{stashes:toSaveStashes,nid:S.nid,nsid:S.nsid},
+      meta:metaPayload,
+      is_pro:!!S.isPro,
+      pro_expires_at:(function(){
+        try{var kd=JSON.parse(localStorage.getItem("stashd_key_data")||"null");return kd&&kd.expires_at?kd.expires_at:null;}catch(e){return null;}
+      })(),
+      updated_at:new Date().toISOString()
+    };
+    fetch(SB_URL+"/rest/v1/user_data",{
+      method:"POST",
+      headers:{
+        "apikey":SB_KEY,
+        "Authorization":"Bearer "+currentSession.access_token,
+        "Content-Type":"application/json",
+        "Prefer":"resolution=merge-duplicates"
+      },
+      body:JSON.stringify(body)
+    }).catch(function(err){console.error("cloud sync failed",err);});
+  },1500);
+}
+
+function pullCloudData(){
+  if(!currentSession||!currentSession.user)return Promise.resolve(false);
+  return fetch(SB_URL+"/rest/v1/user_data?id=eq."+currentSession.user.id+"&select=*",{
+    headers:{
+      "apikey":SB_KEY,
+      "Authorization":"Bearer "+currentSession.access_token
+    }
+  }).then(function(r){return r.json();})
+  .then(function(data){
+    if(!data||!data.length)return false;
+    var row=data[0];
+    if(row.stashes&&row.stashes.stashes){
+      S.stashes=row.stashes.stashes;
+      S.nid=row.stashes.nid||1;
+      S.nsid=row.stashes.nsid||1;
+      saveStashesLocal();
+    }
+    if(row.meta){
+      if(row.meta.liked)S.liked=row.meta.liked;
+      if(row.meta.starred)S.starred=row.meta.starred;
+      if(row.meta.playCounts)S.playCounts=row.meta.playCounts;
+      if(row.meta.playSeconds)S.playSeconds=row.meta.playSeconds;
+      if(row.meta.theme)S.theme=row.meta.theme;
+      if(row.meta.eff)S.eff=row.meta.eff;
+      if(row.meta.speed)S.speed=row.meta.speed;
+      if(row.meta.eq)S.eq=row.meta.eq;
+      if(row.meta.opts)S.opts=row.meta.opts;
+      saveMetaLocal();
+    }
+    if(row.is_pro){
+      S.isPro=true;
+      try{
+        localStorage.setItem("stashd_key_data",JSON.stringify({
+          key:"account-sync",device:getDeviceId(),expires_at:row.pro_expires_at||null
+        }));
+      }catch(e){}
+    }
+    return true;
+  }).catch(function(err){console.error("cloud pull failed",err);return false;});
+}
 
 
 function render(){
