@@ -704,7 +704,10 @@ var dragSrcId=null;
 var dragFid=null;
 
 function loadProfile(){try{var p=localStorage.getItem("stashd_profile");if(p)S.profile=JSON.parse(p);}catch(e){}}
-function saveProfile(){try{localStorage.setItem("stashd_profile",JSON.stringify(S.profile));}catch(e){}}
+function saveProfile(){
+  try{localStorage.setItem("stashd_profile",JSON.stringify(S.profile));}catch(e){}
+  pushCloudSync();
+}
 
 function saveStashesLocal(){
   try{
@@ -3087,7 +3090,7 @@ function buildCloudSyncBody(){
     return {id:f.id,name:f.name,art:f.art||null,
       tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
   });
-  var metaPayload={liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts};
+  var metaPayload={liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts,profile:S.profile};
   return {
     id:currentSession.user.id,
     stashes:{stashes:toSaveStashes,nid:S.nid,nsid:S.nsid},
@@ -3171,6 +3174,7 @@ function pullCloudData(){
       if(row.meta.speed)S.speed=row.meta.speed;
       if(row.meta.eq)S.eq=row.meta.eq;
       if(row.meta.opts)S.opts=row.meta.opts;
+      if(row.meta.profile){S.profile=row.meta.profile;try{localStorage.setItem("stashd_profile",JSON.stringify(S.profile));}catch(e){}}
       saveMetaLocal();
     }
     if(row.is_pro){
