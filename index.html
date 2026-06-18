@@ -1918,6 +1918,23 @@ function renderProfile(){
   badges.appendChild(timeBadge);
   if(S.isPro){var proBadge=document.createElement("div");proBadge.className="pro-badge";proBadge.innerHTML="&#10022; premium";badges.appendChild(proBadge);}
   infoCol.appendChild(nameRow);infoCol.appendChild(bioInput);infoCol.appendChild(badges);
+  var followStatsRow=document.createElement("div");followStatsRow.style.cssText="display:flex;gap:16px;margin-top:8px";
+  followStatsRow.id="my-follow-stats";
+  followStatsRow.innerHTML="<span style='color:var(--t3);font-size:12px'>loading...</span>";
+  infoCol.appendChild(followStatsRow);
+  if(currentSession&&currentSession.user){
+    getFollowCounts(currentSession.user.id).then(function(counts){
+      var row=document.getElementById("my-follow-stats");if(!row)return;
+      row.innerHTML="";
+      var followersStat=document.createElement("div");followersStat.style.cssText="cursor:pointer";
+      followersStat.innerHTML="<span style='font-weight:700;color:var(--t1)'>"+counts.followers+"</span> <span style='color:var(--t3);font-size:12px'>followers</span>";
+      followersStat.onclick=function(){viewFollowList(currentSession.user.id,"followers",S.profile.name||"you");};
+      var followingStat=document.createElement("div");followingStat.style.cssText="cursor:pointer";
+      followingStat.innerHTML="<span style='font-weight:700;color:var(--t1)'>"+counts.following+"</span> <span style='color:var(--t3);font-size:12px'>following</span>";
+      followingStat.onclick=function(){viewFollowList(currentSession.user.id,"following",S.profile.name||"you");};
+      row.appendChild(followersStat);row.appendChild(followingStat);
+    });
+  }
   hero.appendChild(picWrap);hero.appendChild(infoCol);
   profCard.appendChild(hero);
   var themeLabel=document.createElement("div");themeLabel.style.cssText="font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.8px;margin-top:16px;margin-bottom:6px";themeLabel.textContent="profile theme";
@@ -3053,7 +3070,8 @@ function renderPeople(){
           return;
         }
         filtered.forEach(function(u){
-          var card=document.createElement("div");card.className="user-card";
+          var card=document.createElement("div");card.className="user-card";card.style.cursor="pointer";
+          card.onclick=function(){viewPublicProfile(u.id);};
           var pic=document.createElement("div");pic.className="user-card-pic";
           if(u.pic){var img=document.createElement("img");img.src=u.pic;pic.appendChild(img);}
           else{pic.textContent=u.username[0].toUpperCase();}
@@ -3065,7 +3083,7 @@ function renderPeople(){
           var isFollowing=!!myFollowing[u.id];
           btn.className="follow-btn"+(isFollowing?" following":"");
           btn.textContent=isFollowing?"following":"follow";
-          btn.onclick=function(){toggleFollow(u.id,btn);};
+          btn.onclick=function(e){e.stopPropagation();toggleFollow(u.id,btn);};
           card.appendChild(pic);card.appendChild(info);card.appendChild(btn);
           resultsWrap.appendChild(card);
         });
@@ -3218,6 +3236,169 @@ function pullCloudData(){
 }
 
 
+/* ── PUBLIC PROFILE VIEWING + FOLLOWERS/FOLLOWING ── */
+var viewingProfileId=null;
+var viewingProfileData=null;
+
+function getFollowCounts(userId){
+  var followerCount=sbAuthedFetch("follows?following_id=eq."+userId+"&select=follower_id").then(function(r){return r.json();}).then(function(d){return (d||[]).length;}).catch(function(){return 0;});
+  var followingCount=sbAuthedFetch("follows?follower_id=eq."+userId+"&select=following_id").then(function(r){return r.json();}).then(function(d){return (d||[]).length;}).catch(function(){return 0;});
+  return Promise.all([followerCount,followingCount]).then(function(results){
+    return {followers:results[0],following:results[1]};
+  });
+}
+
+function getFollowersList(userId){
+  return sbAuthedFetch("follows?following_id=eq."+userId+"&select=follower_id")
+    .then(function(r){return r.json();})
+    .then(function(rows){
+      var ids=(rows||[]).map(function(r){return r.follower_id;});
+      if(!ids.length)return [];
+      return sbAuthedFetch("profiles?id=in.("+ids.join(",")+")&select=*").then(function(r){return r.json();});
+    }).catch(function(){return [];});
+}
+
+function getFollowingList(userId){
+  return sbAuthedFetch("follows?follower_id=eq."+userId+"&select=following_id")
+    .then(function(r){return r.json();})
+    .then(function(rows){
+      var ids=(rows||[]).map(function(r){return r.following_id;});
+      if(!ids.length)return [];
+      return sbAuthedFetch("profiles?id=in.("+ids.join(",")+")&select=*").then(function(r){return r.json();});
+    }).catch(function(){return [];});
+}
+
+function viewPublicProfile(userId){
+  viewingProfileId=userId;
+  S.page="public-profile";
+  document.querySelectorAll(".sbn").forEach(function(el){el.classList.remove("on");});
+  document.getElementById("tb-title").textContent="profile";
+  document.getElementById("tb-sub").textContent="";
+  document.getElementById("add-btn").style.display="none";
+  render();
+}
+
+function renderPublicProfile(){
+  var c=document.getElementById("content");c.innerHTML="";
+  var wrap=document.createElement("div");wrap.className="fadein";
+  var loadingMsg=document.createElement("div");loadingMsg.style.cssText="color:var(--t3);text-align:center;padding:60px 0";loadingMsg.textContent="loading profile...";
+  wrap.appendChild(loadingMsg);
+  c.appendChild(wrap);
+
+  var userId=viewingProfileId;
+  sbAuthedFetch("profiles?id=eq."+userId+"&select=*")
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(!data||!data.length){
+        wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>profile not found</div>";
+        return;
+      }
+      var u=data[0];
+      return getFollowCounts(userId).then(function(counts){
+        wrap.innerHTML="";
+
+        var card=document.createElement("div");
+        card.style.cssText="background:var(--c1);border:0.5px solid var(--b2);border-radius:16px;padding:24px;margin-bottom:20px";
+        var hero=document.createElement("div");hero.style.cssText="display:flex;align-items:flex-start;gap:18px";
+        var pic=document.createElement("div");pic.style.cssText="width:72px;height:72px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--c2);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:600;color:var(--t2)";
+        if(u.pic){var img=document.createElement("img");img.src=u.pic;img.style.cssText="width:100%;height:100%;object-fit:cover";pic.appendChild(img);}
+        else{pic.textContent=u.username[0].toUpperCase();}
+        var info=document.createElement("div");info.style.cssText="flex:1;min-width:0";
+        var name=document.createElement("div");name.style.cssText="font-size:18px;font-weight:700;color:var(--t1);margin-bottom:4px";name.textContent="@"+u.username;
+        var bio=document.createElement("div");bio.style.cssText="font-size:13px;color:var(--t2);margin-bottom:12px";bio.textContent=u.bio||"";
+        var statsRow=document.createElement("div");statsRow.style.cssText="display:flex;gap:20px";
+
+        var followersStat=document.createElement("div");followersStat.style.cssText="cursor:pointer";
+        followersStat.innerHTML="<span style='font-weight:700;color:var(--t1)'>"+counts.followers+"</span> <span style='color:var(--t3);font-size:12px'>followers</span>";
+        followersStat.onclick=function(){viewFollowList(userId,"followers",u.username);};
+
+        var followingStat=document.createElement("div");followingStat.style.cssText="cursor:pointer";
+        followingStat.innerHTML="<span style='font-weight:700;color:var(--t1)'>"+counts.following+"</span> <span style='color:var(--t3);font-size:12px'>following</span>";
+        followingStat.onclick=function(){viewFollowList(userId,"following",u.username);};
+
+        statsRow.appendChild(followersStat);statsRow.appendChild(followingStat);
+        info.appendChild(name);info.appendChild(bio);info.appendChild(statsRow);
+        hero.appendChild(pic);hero.appendChild(info);
+        card.appendChild(hero);
+
+        var isMe=currentSession&&currentSession.user&&currentSession.user.id===userId;
+        if(!isMe){
+          var btnRow=document.createElement("div");btnRow.style.cssText="margin-top:16px";
+          var followBtn=document.createElement("button");
+          var isFollowing=!!myFollowing[userId];
+          followBtn.className="follow-btn"+(isFollowing?" following":"");
+          followBtn.textContent=isFollowing?"following":"follow";
+          followBtn.onclick=function(){toggleFollow(userId,followBtn);};
+          btnRow.appendChild(followBtn);
+          card.appendChild(btnRow);
+        }
+
+        wrap.appendChild(card);
+      });
+    }).catch(function(){
+      wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>couldn't load profile</div>";
+    });
+}
+
+function viewFollowList(userId,type,username){
+  S.page="follow-list";
+  S._followListType=type;
+  S._followListUserId=userId;
+  S._followListUsername=username;
+  document.querySelectorAll(".sbn").forEach(function(el){el.classList.remove("on");});
+  document.getElementById("tb-title").textContent=type;
+  document.getElementById("tb-sub").textContent="@"+username;
+  document.getElementById("add-btn").style.display="none";
+  render();
+}
+
+function renderFollowList(){
+  var c=document.getElementById("content");c.innerHTML="";
+  var wrap=document.createElement("div");wrap.className="fadein";
+
+  var backBtn=document.createElement("div");backBtn.style.cssText="color:var(--t2);font-size:12px;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;gap:4px";
+  backBtn.innerHTML="&larr; back to profile";
+  backBtn.onclick=function(){viewPublicProfile(S._followListUserId);};
+  wrap.appendChild(backBtn);
+
+  var loadingMsg=document.createElement("div");loadingMsg.style.cssText="color:var(--t3);text-align:center;padding:40px 0";loadingMsg.textContent="loading...";
+  wrap.appendChild(loadingMsg);
+  c.appendChild(wrap);
+
+  var fetcher=S._followListType==="followers"?getFollowersList:getFollowingList;
+  fetcher(S._followListUserId).then(function(users){
+    loadingMsg.remove();
+    if(!users.length){
+      var empty=document.createElement("div");empty.style.cssText="color:var(--t3);text-align:center;padding:40px 0;font-size:13px";
+      empty.textContent="no "+S._followListType+" yet";
+      wrap.appendChild(empty);
+      return;
+    }
+    users.forEach(function(u){
+      var card=document.createElement("div");card.className="user-card";card.style.cursor="pointer";
+      card.onclick=function(){viewPublicProfile(u.id);};
+      var pic=document.createElement("div");pic.className="user-card-pic";
+      if(u.pic){var img=document.createElement("img");img.src=u.pic;pic.appendChild(img);}
+      else{pic.textContent=u.username[0].toUpperCase();}
+      var info=document.createElement("div");info.className="user-card-info";
+      var name=document.createElement("div");name.className="user-card-name";name.textContent="@"+u.username;
+      var bio=document.createElement("div");bio.className="user-card-bio";bio.textContent=u.bio||"";
+      info.appendChild(name);info.appendChild(bio);
+      card.appendChild(pic);card.appendChild(info);
+      if(!(currentSession&&currentSession.user&&currentSession.user.id===u.id)){
+        var btn=document.createElement("button");
+        var isFollowing=!!myFollowing[u.id];
+        btn.className="follow-btn"+(isFollowing?" following":"");
+        btn.textContent=isFollowing?"following":"follow";
+        btn.onclick=function(e){e.stopPropagation();toggleFollow(u.id,btn);};
+        card.appendChild(btn);
+      }
+      wrap.appendChild(card);
+    });
+  });
+}
+
+
 function render(){
   renderSidebar();
   var p=S.page;
@@ -3228,6 +3409,8 @@ function render(){
   else if(p==="stats")renderStats();
   else if(p==="settings")renderSettings();
   else if(p==="people")renderPeople();
+  else if(p==="public-profile")renderPublicProfile();
+  else if(p==="follow-list")renderFollowList();
   else if(p==="premium")renderPremium();
   else if(p==="profile")renderProfile();
 }
