@@ -2485,19 +2485,15 @@ function removeBgImage(){
 
 /* ── PROFILE THEME ── */
 function pushPublicProfileCosmetics(){
-  if(!currentSession||!currentSession.user)return;
-  sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",{
-    prof_theme:profTheme,
-    name_tag_text:nameTag.text||null,
-    name_tag_color:nameTag.color||null,
-    prof_effect:profEffect
-  }).then(function(r){
+  if(!currentSession||!currentSession.user){alert("pushCosmetics: no session");return;}
+  var payload={prof_theme:profTheme,name_tag_text:nameTag.text||null,name_tag_color:nameTag.color||null,prof_effect:profEffect};
+  alert("pushing cosmetics: "+JSON.stringify(payload)+" for user "+currentSession.user.id.slice(0,8));
+  sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",payload)
+  .then(function(r){
     return r.text().then(function(text){
-      if(!r.ok){
-        console.error("pushPublicProfileCosmetics failed",r.status,text);
-      }
+      alert("cosmetics response: status="+r.status+" body="+text.slice(0,200));
     });
-  }).catch(function(err){console.error("pushPublicProfileCosmetics network error",err);});
+  }).catch(function(err){alert("cosmetics network error: "+(err&&err.message?err.message:err));});
 }
 
 function setProfTheme(t){
