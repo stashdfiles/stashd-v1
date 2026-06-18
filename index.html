@@ -691,7 +691,7 @@ var ctxTarget=null;
 var profTheme="default";
 var nameTag={text:"",color:"#c9a84c",bg:"rgba(201,168,76,.15)"};
 var S_particles=false;
-var S_crossfade=2;
+var S_crossfade=0;
 var S_pitch=0;
 var particleInterval=null;
 var fsRAF=null;
@@ -2491,12 +2491,14 @@ function startCrossfadeTimer(){
   if(crossfadeTimer)clearInterval(crossfadeTimer);
   if(!S_crossfade)return;
   crossfadeTimer=setInterval(function(){
-    if(!S.playing||!aud.duration)return;
+    if(!S.playing||!aud.duration||!isFinite(aud.duration)||aud.duration<S_crossfade*2)return;
     var remaining=aud.duration-aud.currentTime;
     if(remaining<=S_crossfade&&remaining>0){
       var vol=remaining/S_crossfade;
       if(gain)gain.gain.value=vol*0.8;
       else aud.volume=vol;
+    }else if(gain){
+      gain.gain.value=0.8;
     }
   },100);
 }
