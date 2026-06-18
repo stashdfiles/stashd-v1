@@ -3029,6 +3029,15 @@ function renderPeople(){
 }
 
 
+/* ── DETERRENTS (not real security - see note) ── */
+document.addEventListener("contextmenu",function(e){e.preventDefault();});
+document.addEventListener("keydown",function(e){
+  if(e.key==="F12"){e.preventDefault();return false;}
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(e.key==="I"||e.key==="i"||e.key==="J"||e.key==="j"||e.key==="C"||e.key==="c")){e.preventDefault();return false;}
+  if((e.ctrlKey||e.metaKey)&&(e.key==="u"||e.key==="U")){e.preventDefault();return false;}
+});
+
+
 function render(){
   renderSidebar();
   var p=S.page;
