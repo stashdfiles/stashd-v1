@@ -1650,7 +1650,9 @@ function renderSettings(){
   restoreBtn.onclick=restoreData;
   var logoutBtn=document.createElement("button");logoutBtn.className="reset-btn";logoutBtn.style.cssText="background:none;border:0.5px solid #e24b4a;color:#e24b4a;padding:7px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit";
   logoutBtn.textContent="log out";logoutBtn.onclick=function(){if(confirm("log out of stashd?"))logOut();};
-  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
+  var syncBtn=document.createElement("button");syncBtn.className="reset-btn";
+  syncBtn.textContent="sync to cloud now";syncBtn.onclick=manualSyncNow;
+  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
   wrap.appendChild(sw);c.appendChild(wrap);
 }
 
@@ -3080,37 +3082,66 @@ document.addEventListener("keydown",function(e){
 var cloudSyncTimer=null;
 var cloudSyncInProgress=false;
 
+function buildCloudSyncBody(){
+  var toSaveStashes=S.stashes.map(function(f){
+    return {id:f.id,name:f.name,art:f.art||null,
+      tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
+  });
+  var metaPayload={liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts};
+  return {
+    id:currentSession.user.id,
+    stashes:{stashes:toSaveStashes,nid:S.nid,nsid:S.nsid},
+    meta:metaPayload,
+    is_pro:!!S.isPro,
+    pro_expires_at:(function(){
+      try{var kd=JSON.parse(localStorage.getItem("stashd_key_data")||"null");return kd&&kd.expires_at?kd.expires_at:null;}catch(e){return null;}
+    })(),
+    updated_at:new Date().toISOString()
+  };
+}
+
+function doCloudSync(showResult){
+  if(!currentSession||!currentSession.user){
+    if(showResult)alert("not logged in - can't sync");
+    return Promise.resolve(false);
+  }
+  var body=buildCloudSyncBody();
+  return fetch(SB_URL+"/rest/v1/user_data?on_conflict=id",{
+    method:"POST",
+    headers:{
+      "apikey":SB_KEY,
+      "Authorization":"Bearer "+currentSession.access_token,
+      "Content-Type":"application/json",
+      "Prefer":"resolution=merge-duplicates,return=representation"
+    },
+    body:JSON.stringify(body)
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("cloud sync failed",r.status,text);
+        if(showResult)alert("sync failed - error "+r.status+": "+text.slice(0,200));
+        return false;
+      }
+      if(showResult)alert("synced successfully!");
+      return true;
+    });
+  }).catch(function(err){
+    console.error("cloud sync network error",err);
+    if(showResult)alert("sync failed - network error: "+(err&&err.message?err.message:err));
+    return false;
+  });
+}
+
 function pushCloudSync(){
   if(!currentSession||!currentSession.user)return;
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer=setTimeout(function(){
-    if(!currentSession||!currentSession.user)return;
-    var toSaveStashes=S.stashes.map(function(f){
-      return {id:f.id,name:f.name,art:f.art||null,
-        tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
-    });
-    var metaPayload={liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts};
-    var body={
-      id:currentSession.user.id,
-      stashes:{stashes:toSaveStashes,nid:S.nid,nsid:S.nsid},
-      meta:metaPayload,
-      is_pro:!!S.isPro,
-      pro_expires_at:(function(){
-        try{var kd=JSON.parse(localStorage.getItem("stashd_key_data")||"null");return kd&&kd.expires_at?kd.expires_at:null;}catch(e){return null;}
-      })(),
-      updated_at:new Date().toISOString()
-    };
-    fetch(SB_URL+"/rest/v1/user_data",{
-      method:"POST",
-      headers:{
-        "apikey":SB_KEY,
-        "Authorization":"Bearer "+currentSession.access_token,
-        "Content-Type":"application/json",
-        "Prefer":"resolution=merge-duplicates"
-      },
-      body:JSON.stringify(body)
-    }).catch(function(err){console.error("cloud sync failed",err);});
+    doCloudSync(false);
   },1500);
+}
+
+function manualSyncNow(){
+  doCloudSync(true);
 }
 
 function pullCloudData(){
