@@ -844,21 +844,16 @@ function playTrack(fid,tid){
     var wasL=linked;aud.src=src;aud.playbackRate=S.speed;aud.load();
     if(!wasL)linkSrc();else applyEff();
     if(actx&&actx.state==="suspended")actx.resume();
-    aud.play().then(function(){
-      setTimeout(function(){
-        if(myToken!==playRequestToken)return;
-        showDebugMsg("AUDIO GRAPH STATE: actxState="+(actx?actx.state:"no actx")+" gainValue="+(gain?gain.gain.value:"no gain")+" linked="+linked+" audVolume="+aud.volume+" audMuted="+aud.muted+" audPaused="+aud.paused+" audCurrentTime="+aud.currentTime);
-      },300);
-    }).catch(function(err){
+    aud.play().catch(function(err){
       if(err&&err.name==="AbortError")return; // benign - a newer load took over
-      showDebugMsg("PLAYBACK FAILED: "+(err&&err.name?err.name:"")+" - "+(err&&err.message?err.message:err)+" | src="+src.slice(0,120));
+      console.error("playback failed",err);
     });
   }
   aud.onerror=function(){
     if(myToken!==playRequestToken)return;
     var errCode=aud.error?aud.error.code:"unknown";
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
-    showDebugMsg("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
+    console.error("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
   };
   if(t.filename&&fileCache[t.filename]){
     // file is in memory cache - create fresh blob url
@@ -978,27 +973,13 @@ function uploadTrackAudio(file,trackId,trackRef){
   }).catch(function(err){trackRef.uploading=false;console.error("upload network error",err);});
 }
 
-function showDebugMsg(msg){
-  var box=document.getElementById("temp-error-box");
-  if(!box){
-    box=document.createElement("div");
-    box.id="temp-error-box";
-    box.style.cssText="position:fixed;top:0;left:0;right:0;background:#3a0a0a;color:#fff;padding:14px;font-family:monospace;font-size:12px;z-index:99999;white-space:pre-wrap;max-height:50vh;overflow:auto;border-bottom:3px solid #e24b4a";
-    document.body.appendChild(box);
-  }
-  var line=document.createElement("div");
-  line.style.marginBottom="8px";
-  line.textContent=msg;
-  box.appendChild(line);
-}
-
 function getTrackPlaybackUrl(track){
   if(!track.storage_path||!currentSession){
-    showDebugMsg("getTrackPlaybackUrl: no storage_path or no session. storage_path="+track.storage_path+" hasSession="+(!!currentSession));
+    console.error("getTrackPlaybackUrl: no storage_path or no session. storage_path="+track.storage_path+" hasSession="+(!!currentSession));
     return Promise.resolve(track.src||null);
   }
   if(!currentSession.access_token){
-    showDebugMsg("getTrackPlaybackUrl: currentSession exists but has no access_token");
+    console.error("getTrackPlaybackUrl: currentSession exists but has no access_token");
   }
   return fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
     method:"POST",
@@ -1013,17 +994,17 @@ function getTrackPlaybackUrl(track){
       var data=null;
       try{data=text?JSON.parse(text):null;}catch(e){}
       if(!r.ok){
-        showDebugMsg("SIGN URL FAILED status="+r.status+" path="+track.storage_path+" body="+text.slice(0,200));
+        console.error("SIGN URL FAILED status="+r.status+" path="+track.storage_path+" body="+text.slice(0,200));
       }
       return data;
     });
   })
   .then(function(data){
     if(data&&data.signedURL)return SB_URL+"/storage/v1"+data.signedURL;
-    showDebugMsg("SIGN URL: no signedURL field. path="+track.storage_path+" response="+JSON.stringify(data).slice(0,200));
+    console.error("SIGN URL: no signedURL field. path="+track.storage_path+" response="+JSON.stringify(data).slice(0,200));
     return null;
   }).catch(function(err){
-    showDebugMsg("SIGN URL network error: "+(err&&err.message?err.message:err));
+    console.error("SIGN URL network error: "+(err&&err.message?err.message:err));
     return null;
   });
 }
@@ -3074,34 +3055,6 @@ function renderPeople(){
   c.appendChild(wrap);
 }
 
-
-/* ── TEMP ERROR REPORTER (visible without devtools) ── */
-window.addEventListener("error",function(e){
-  var box=document.getElementById("temp-error-box");
-  if(!box){
-    box=document.createElement("div");
-    box.id="temp-error-box";
-    box.style.cssText="position:fixed;top:0;left:0;right:0;background:#3a0a0a;color:#fff;padding:14px;font-family:monospace;font-size:12px;z-index:99999;white-space:pre-wrap;max-height:50vh;overflow:auto;border-bottom:3px solid #e24b4a";
-    document.body.appendChild(box);
-  }
-  var line=document.createElement("div");
-  line.style.marginBottom="8px";
-  line.textContent="ERROR: "+e.message+"\\n  at "+e.filename+":"+e.lineno+":"+e.colno;
-  box.appendChild(line);
-});
-window.addEventListener("unhandledrejection",function(e){
-  var box=document.getElementById("temp-error-box");
-  if(!box){
-    box=document.createElement("div");
-    box.id="temp-error-box";
-    box.style.cssText="position:fixed;top:0;left:0;right:0;background:#3a0a0a;color:#fff;padding:14px;font-family:monospace;font-size:12px;z-index:99999;white-space:pre-wrap;max-height:50vh;overflow:auto;border-bottom:3px solid #e24b4a";
-    document.body.appendChild(box);
-  }
-  var line=document.createElement("div");
-  line.style.marginBottom="8px";
-  line.textContent="UNHANDLED PROMISE REJECTION: "+(e.reason&&e.reason.message?e.reason.message:e.reason);
-  box.appendChild(line);
-});
 
 /* ── DETERRENTS (not real security - see note) ── */
 document.addEventListener("contextmenu",function(e){e.preventDefault();});
