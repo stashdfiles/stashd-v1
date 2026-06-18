@@ -2861,7 +2861,7 @@ function enterApp(){
 
 function loginWithDiscord(){
   var redirectTo=window.location.origin+window.location.pathname;
-  var url=SB_URL+"/auth/v1/authorize?provider=discord&redirect_to="+encodeURIComponent(redirectTo);
+  var url=SB_URL+"/auth/v1/authorize?provider=discord&scopes=identify%20email&redirect_to="+encodeURIComponent(redirectTo);
   window.location.href=url;
 }
 
