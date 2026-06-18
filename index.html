@@ -2848,6 +2848,7 @@ function enterApp(){
     loadMyFollowing();
     pullCloudData().then(function(){
       render();
+      updateSidebarProfile();
       restoreCloudAudio();
       if(pendingShareCode){
         var codeToImport=pendingShareCode;
@@ -3153,6 +3154,7 @@ function manualPullNow(){
   pullCloudData().then(function(success){
     if(success){
       render();
+      updateSidebarProfile();
       alert("pulled from cloud! profile name is now: "+S.profile.name);
     }else{
       alert("pull failed or no data found - check console for details");
