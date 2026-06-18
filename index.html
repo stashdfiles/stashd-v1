@@ -1641,9 +1641,28 @@ function activateKey(){
   msg.style.color="var(--t2)";msg.textContent="checking key...";
   if(btn)btn.disabled=true;
   sbFetch("keys?key=eq."+encodeURIComponent(key)+"&select=*")
-    .then(function(r){return r.json();})
-    .then(function(data){
-      if(!data||!data.length){
+    .then(function(r){
+      return r.text().then(function(text){
+        var data=null;
+        try{data=text?JSON.parse(text):null;}catch(e){}
+        return {ok:r.ok,status:r.status,data:data,raw:text};
+      });
+    })
+    .then(function(res){
+      if(!res.ok){
+        msg.style.color="#e24b4a";
+        msg.textContent="error "+res.status+": "+(res.raw||"request failed").slice(0,80);
+        console.error("key check failed",res.status,res.raw);
+        if(btn)btn.disabled=false;return;
+      }
+      var data=res.data;
+      if(!Array.isArray(data)){
+        msg.style.color="#e24b4a";
+        msg.textContent="unexpected response — see console";
+        console.error("key check unexpected response",data);
+        if(btn)btn.disabled=false;return;
+      }
+      if(!data.length){
         msg.style.color="#e24b4a";msg.textContent="invalid key — join the discord to get one";
         if(btn)btn.disabled=false;return;
       }
@@ -1671,7 +1690,15 @@ function activateKey(){
         device_id:getDeviceId(),
         activated_at:new Date().toISOString(),
         expires_at:expiresAt
-      }).then(function(){
+      }).then(function(r){
+        if(!r.ok){
+          return r.text().then(function(text){
+            console.error("key claim failed",r.status,text);
+            msg.style.color="#e24b4a";msg.textContent="couldn't claim key — error "+r.status;
+            if(btn)btn.disabled=false;
+            throw new Error("claim failed");
+          });
+        }
         localStorage.setItem("stashd_key_data",JSON.stringify({
           key:key,device:getDeviceId(),expires_at:expiresAt
         }));
@@ -1679,10 +1706,16 @@ function activateKey(){
         var expMsg=expiresAt?" expires "+new Date(expiresAt).toLocaleDateString():"no expiry";
         msg.style.color="#4ade80";msg.textContent="key activated! premium unlocked. ("+expMsg+")";
         setTimeout(function(){render();},1500);
+      }).catch(function(err){
+        if(btn)btn.disabled=false;
+        if(err&&err.message==="claim failed")return;
+        msg.style.color="#e24b4a";msg.textContent="connection error claiming key";
+        console.error("key claim network error",err);
       });
     })
-    .catch(function(){
+    .catch(function(err){
       msg.style.color="#e24b4a";msg.textContent="connection error — check your internet and try again";
+      console.error("activateKey top-level error",err);
       if(btn)btn.disabled=false;
     });
 }
