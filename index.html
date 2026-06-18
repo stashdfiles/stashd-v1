@@ -1774,6 +1774,11 @@ function activateKey(){
           key:key,device:getDeviceId(),expires_at:expiresAt
         }));
         S.isPro=true;
+        // push premium status to public profiles table
+        if(currentSession&&currentSession.user){
+          sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",{is_pro:true})
+            .catch(function(err){console.error("is_pro patch failed",err);});
+        }
         var expMsg=expiresAt?" expires "+new Date(expiresAt).toLocaleDateString():"no expiry";
         msg.style.color="#4ade80";msg.textContent="key activated! premium unlocked. ("+expMsg+")";
         setTimeout(function(){render();},1500);
@@ -2485,15 +2490,16 @@ function removeBgImage(){
 
 /* ── PROFILE THEME ── */
 function pushPublicProfileCosmetics(){
-  if(!currentSession||!currentSession.user){alert("pushCosmetics: no session");return;}
-  var payload={prof_theme:profTheme,name_tag_text:nameTag.text||null,name_tag_color:nameTag.color||null,prof_effect:profEffect};
-  alert("pushing cosmetics: "+JSON.stringify(payload)+" for user "+currentSession.user.id.slice(0,8));
-  sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",payload)
-  .then(function(r){
-    return r.text().then(function(text){
-      alert("cosmetics response: status="+r.status+" body="+text.slice(0,200));
-    });
-  }).catch(function(err){alert("cosmetics network error: "+(err&&err.message?err.message:err));});
+  if(!currentSession||!currentSession.user)return;
+  sbAuthedFetch("profiles?id=eq."+currentSession.user.id,"PATCH",{
+    prof_theme:profTheme,
+    name_tag_text:nameTag.text||null,
+    name_tag_color:nameTag.color||null,
+    prof_effect:profEffect,
+    is_pro:!!S.isPro
+  }).then(function(r){
+    if(!r.ok)r.text().then(function(t){console.error("pushPublicProfileCosmetics failed",r.status,t);});
+  }).catch(function(err){console.error("pushPublicProfileCosmetics error",err);});
 }
 
 function setProfTheme(t){
@@ -3378,6 +3384,10 @@ function renderPublicProfile(){
           var tagColor=u.name_tag_color||"#c9a84c";
           tag.style.cssText="background:"+tagColor+"22;color:"+tagColor+";border:0.5px solid "+tagColor+"44;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0";
           nameRow.appendChild(tag);
+        }
+        if(u.is_pro){
+          var proBadge=document.createElement("div");proBadge.className="pro-badge";proBadge.innerHTML="&#10022; premium";
+          nameRow.appendChild(proBadge);
         }
         var bio=document.createElement("div");bio.style.cssText="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:12px";bio.textContent=u.bio||"";
         var statsRow=document.createElement("div");statsRow.style.cssText="display:flex;gap:20px";
