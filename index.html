@@ -872,10 +872,14 @@ function playTrack(fid,tid){
   } else if(t.storage_path){
     // cloud-stored track - fetch a fresh signed url and play directly
     getTrackPlaybackUrl(t).then(function(url){
-      if(url){t.src=url;doPlay(url);}
+      if(url){
+        showDebugMsg("FULL SIGNED URL: "+url);
+        t.src=url;doPlay(url);
+      }
       else showReloadPrompt(t.fid);
     });
   } else if(t.src){
+    showDebugMsg("FULL EXISTING SRC: "+t.src);
     doPlay(t.src);
   } else if(t.filename){
     // no src and no cloud copy - need files reloaded
