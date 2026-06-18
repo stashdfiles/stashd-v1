@@ -753,6 +753,7 @@ function updateSidebarProfile(){
 }
 
 var aud=document.getElementById("aud");
+aud.crossOrigin="anonymous";
 var actx=null,gain=null,filters={},srcNode=null,linked=false,analyser=null,waveData=null,waveRAF=null,playTimer=null;
 
 function initAudio(){
