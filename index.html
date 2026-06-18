@@ -843,7 +843,12 @@ function playTrack(fid,tid){
     var wasL=linked;aud.src=src;aud.playbackRate=S.speed;aud.load();
     if(!wasL)linkSrc();else applyEff();
     if(actx&&actx.state==="suspended")actx.resume();
-    aud.play().catch(function(err){
+    aud.play().then(function(){
+      setTimeout(function(){
+        if(myToken!==playRequestToken)return;
+        showDebugMsg("AUDIO GRAPH STATE: actxState="+(actx?actx.state:"no actx")+" gainValue="+(gain?gain.gain.value:"no gain")+" linked="+linked+" audVolume="+aud.volume+" audMuted="+aud.muted+" audPaused="+aud.paused+" audCurrentTime="+aud.currentTime);
+      },300);
+    }).catch(function(err){
       if(err&&err.name==="AbortError")return; // benign - a newer load took over
       showDebugMsg("PLAYBACK FAILED: "+(err&&err.name?err.name:"")+" - "+(err&&err.message?err.message:err)+" | src="+src.slice(0,120));
     });
