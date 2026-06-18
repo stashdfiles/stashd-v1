@@ -3044,7 +3044,7 @@ function submitUsername(){
 
 function searchUsers(query){
   if(!query||query.length<1)return Promise.resolve([]);
-  return sbAuthedFetch("profiles?username=ilike.*"+encodeURIComponent(query)+"*&select=*&limit=20")
+  return sbAuthedFetch("profiles?username=ilike.*"+query+"*&select=*&limit=20")
     .then(function(r){return r.json();})
     .catch(function(){return [];});
 }
