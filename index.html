@@ -3286,8 +3286,17 @@ function renderPublicProfile(){
   c.appendChild(wrap);
 
   var userId=viewingProfileId;
+  if(!userId){
+    wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>no profile selected</div>";
+    return;
+  }
   sbAuthedFetch("profiles?id=eq."+userId+"&select=*")
-    .then(function(r){return r.json();})
+    .then(function(r){
+      return r.text().then(function(text){
+        if(!r.ok){console.error("renderPublicProfile fetch failed",r.status,text);}
+        try{return JSON.parse(text);}catch(e){console.error("renderPublicProfile parse error",text);return null;}
+      });
+    })
     .then(function(data){
       if(!data||!data.length){
         wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>profile not found</div>";
@@ -3335,7 +3344,8 @@ function renderPublicProfile(){
 
         wrap.appendChild(card);
       });
-    }).catch(function(){
+    }).catch(function(err){
+      console.error('renderPublicProfile error',err);
       wrap.innerHTML="<div style='color:var(--t3);text-align:center;padding:60px 0'>couldn't load profile</div>";
     });
 }
