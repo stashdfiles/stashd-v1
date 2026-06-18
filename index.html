@@ -3111,7 +3111,7 @@ function renderPeople(){
       resultsWrap.innerHTML="<div style='color:var(--t3);font-size:13px;padding:16px 0'>searching...</div>";
       searchUsers(q).then(function(users){
         resultsWrap.innerHTML="";
-        var filtered=users.filter(function(u){return u.id!==(currentSession&&currentSession.user?currentSession.user.id:null);});
+        var filtered=users;
         if(!filtered.length){
           resultsWrap.innerHTML="<div style='color:var(--t3);font-size:13px;padding:16px 0'>no users found</div>";
           return;
