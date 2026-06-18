@@ -24,7 +24,7 @@
 [data-theme="void"]{--bg:#000000;--c1:#080808;--c2:#0f0f0f;--c3:#141414;--b1:#161616;--b2:#202020;--b3:#2a2a2a;--t1:#ffffff;--t2:#444;--t3:#1e1e1e;--grad:linear-gradient(145deg,#0c0c0c,#000);--ac:#ffffff;--ac2:#aaaaaa;--ag:rgba(255,255,255,.05)}
 [data-theme="forest-deep"]{--bg:#020a04;--c1:#061408;--c2:#0a1e0c;--c3:#0e2810;--b1:#102c14;--b2:#163c1a;--b3:#1c4c22;--t1:#d8ffdc;--t2:#3a6a3e;--t3:#0a1e0c;--grad:linear-gradient(145deg,#0a2010,#020a04);--ac:#4ade80;--ac2:#16a34a;--ag:rgba(74,222,128,.07)}
 html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:var(--bg);overflow:hidden}
-.app{display:flex;flex-direction:column;height:100vh;background:var(--grad);color:var(--t1);font-size:13px;transition:background .4s}
+.app{display:flex;flex-direction:column;height:100vh;background:var(--grad);color:var(--t1);font-size:13px;transition:background .4s;position:relative;z-index:1}
 .mid{display:flex;flex:1;overflow:hidden;min-height:0}
 .sidebar{width:210px;background:rgba(0,0,0,.25);border-right:0.5px solid var(--b1);display:flex;flex-direction:column;flex-shrink:0;backdrop-filter:blur(12px)}
 .sb-logo{padding:14px 14px 11px;display:flex;align-items:center;gap:9px;border-bottom:0.5px solid var(--b1)}
@@ -254,7 +254,8 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 .ctx-item.danger:hover{background:rgba(226,75,74,.08);color:#e24b4a}
 .ctx-divider{height:0.5px;background:var(--b2);margin:4px 0}
 .particle{position:fixed;pointer-events:none;border-radius:50%;z-index:1}
-.bg-image-overlay{position:fixed;inset:0;z-index:-1;background-size:cover;background-position:center;opacity:.15;pointer-events:none}
+.bg-image-overlay{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;opacity:.25;pointer-events:none}
+body.has-bg-image .app{background:rgba(0,0,0,.55)}
 .prof-theme-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
 .prof-theme-chip{border-radius:8px;padding:9px 4px;text-align:center;cursor:pointer;border:1.5px solid transparent;font-size:10px;color:var(--t2);transition:all .15s}
 .prof-theme-chip.on{border-color:var(--t1)!important;color:var(--t1)}
@@ -1048,7 +1049,11 @@ function askDelT(fid,tid){
 function openShare(fid,e){
   e.stopPropagation();var f=gS(fid);if(!f)return;
   document.getElementById("share-stash-name").textContent="\""+f.name+"\" - "+f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
-  var payload={name:f.name,tracks:f.tracks.map(function(t){return{title:t.title,artist:t.artist,dur:t.dur};})};
+  var payload={
+    name:f.name,
+    art:f.art||null,
+    tracks:f.tracks.map(function(t){return{title:t.title,artist:t.artist,dur:t.dur,storage_path:t.storage_path||null};})
+  };
   var code=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   var link=window.location.origin+"/?share="+code;
   document.getElementById("share-code-display").textContent=link;
@@ -1067,7 +1072,21 @@ function importStash(){
   importCode(code);
 }
 function importCode(code){
-  try{var p=JSON.parse(decodeURIComponent(escape(atob(code))));if(!p.name||!Array.isArray(p.tracks))throw 0;var ns={id:S.nsid++,name:p.name+" (imported)",art:null,tracks:[]};p.tracks.forEach(function(t){ns.tracks.push({id:S.nid++,title:t.title,artist:t.artist,dur:t.dur,src:null});});S.stashes.push(ns);saveStashes();hideOv("ov-share");goPage("home");render();alert("stash imported: "+ns.name);}
+  try{
+    var p=JSON.parse(decodeURIComponent(escape(atob(code))));
+    if(!p.name||!Array.isArray(p.tracks))throw 0;
+    var ns={id:S.nsid++,name:p.name+" (imported)",art:p.art||null,tracks:[]};
+    p.tracks.forEach(function(t){
+      ns.tracks.push({id:S.nid++,title:t.title,artist:t.artist,dur:t.dur,src:null,storage_path:t.storage_path||null,notes:""});
+    });
+    S.stashes.push(ns);
+    saveStashes();hideOv("ov-share");goPage("home");render();
+    if(currentSession&&currentSession.user){
+      restoreCloudAudio();
+    }
+    var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
+    alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":""));
+  }
   catch(e){alert("invalid stash code");}
 }
 
@@ -1082,12 +1101,13 @@ if(window.stashd){
 }
 
 // web equivalent: check ?share= URL param on load
+var pendingShareCode=null;
 (function(){
   try{
     var params=new URLSearchParams(window.location.search);
     var shareCode=params.get("share");
     if(shareCode){
-      setTimeout(function(){importCode(shareCode);},800);
+      pendingShareCode=shareCode;
       // clean the URL so refreshing doesn't re-trigger
       window.history.replaceState({},document.title,window.location.pathname);
     }
@@ -2372,6 +2392,7 @@ function setBgImage(){
       var data=canvas.toDataURL("image/jpeg",0.7);
       URL.revokeObjectURL(url);
       var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+data+")";
+      document.body.classList.add("has-bg-image");
       try{localStorage.setItem("stashd_bg",data);}catch(err){
         alert("image applied but too large to save between sessions. try a smaller image.");
       }
@@ -2381,6 +2402,7 @@ function setBgImage(){
 }
 function removeBgImage(){
   var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="";
+  document.body.classList.remove("has-bg-image");
   try{localStorage.removeItem("stashd_bg");}catch(e){}
 }
 
@@ -2783,6 +2805,11 @@ function enterApp(){
     var ap=document.getElementById("app");if(ap)ap.style.display="";
     loadMyFollowing();
     restoreCloudAudio();
+    if(pendingShareCode){
+      var codeToImport=pendingShareCode;
+      pendingShareCode=null;
+      importCode(codeToImport);
+    }
   });
 }
 
@@ -3018,7 +3045,7 @@ function render(){
 
 initAuth();
 if(checkStoredKey())S.isPro=true;
-(function(){try{var bg=localStorage.getItem("stashd_bg");if(bg){var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+bg+")";}}catch(e){}})();
+(function(){try{var bg=localStorage.getItem("stashd_bg");if(bg){var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+bg+")";document.body.classList.add("has-bg-image");}}catch(e){}})();
 (function(){try{if(S.theme&&S.theme!=="default")document.getElementById("app").setAttribute("data-theme",S.theme);}catch(e){}})();
 
 document.addEventListener("click", function(){if(actx&&actx.state==="suspended")actx.resume();}, {once:false});
