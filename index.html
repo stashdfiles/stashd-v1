@@ -827,6 +827,7 @@ function allTracks(){return S.stashes.reduce(function(a,f){return a.concat(f.tra
 
 function playTrack(fid,tid){
   var f=gS(fid),t=gT(fid,tid);if(!f||!t)return;
+  showDebugMsg("playTrack called: title="+t.title+" filename="+t.filename+" inFileCache="+(!!(t.filename&&fileCache[t.filename]))+" src="+(t.src?t.src.slice(0,60):"none")+" storage_path="+t.storage_path+" hasSession="+(!!currentSession));
   if(playTimer){clearInterval(playTimer);playTimer=null;}
   S.cur={fid:fid,tid:tid};S.playing=true;
   if(!S.playCounts[tid])S.playCounts[tid]=0;S.playCounts[tid]++;
