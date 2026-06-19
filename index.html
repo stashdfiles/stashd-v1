@@ -927,7 +927,7 @@ function playTrack(fid,tid){
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
     showDebugBanner("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
   };
-  showDebugBanner("BRANCH CHECK: filename="+t.filename+" | inCache="+(!!(t.filename&&fileCache[t.filename]))+" | src="+(t.src?t.src.slice(0,60):"none")+" | storage_path="+t.storage_path+" | hasSession="+(!!currentSession));
+  showDebugBanner("BRANCH CHECK: title="+t.title+" | id="+t.id+" | fid="+fid+" | filename="+t.filename+" | storage_path="+t.storage_path+" | hasSession="+(!!currentSession));
   if(t.filename&&fileCache[t.filename]){
     // file is in memory cache - create fresh blob url
     var freshUrl=URL.createObjectURL(fileCache[t.filename]);
