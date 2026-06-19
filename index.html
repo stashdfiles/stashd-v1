@@ -1205,8 +1205,7 @@ function importCode(code){
         restoreCloudAudio();
       }
       var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
-      console.log("import complete",ns.name,"hasAudio:",hasAudio,"tracks:",ns.tracks.map(function(t){return {title:t.title,storage_path:t.storage_path};}));
-      alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":""));
+      showToast("stash imported: "+ns.name+(hasAudio?" — audio loading":""));
     })
     .catch(function(err){
       console.error("importCode error",err);
@@ -1308,7 +1307,7 @@ function mkTrow(t,idx){
   row.oncontextmenu=function(e){showCtxMenu(e,t.fid,t.id);};
   row.ondragover=function(e){onDragOver(e,t.id);};
   row.ondrop=function(e){onDrop(e,t.fid,t.id);};
-  row.onclick=function(e){console.log("row clicked",t.title,"fid=",t.fid,"id=",t.id);if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;playTrack(t.fid,t.id);};
+  row.onclick=function(e){if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;playTrack(t.fid,t.id);};
 
   // drag handle
   var drag=document.createElement("div");drag.className="trow-drag";
@@ -3588,6 +3587,22 @@ function checkMobileMenuVisibility(){
 }
 window.addEventListener("resize",checkMobileMenuVisibility);
 checkMobileMenuVisibility();
+
+
+function showToast(msg){
+  var existing=document.getElementById("stashd-toast");
+  if(existing)existing.remove();
+  var t=document.createElement("div");
+  t.id="stashd-toast";
+  t.style.cssText="position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--c1);border:0.5px solid var(--b2);color:var(--t1);padding:10px 18px;border-radius:10px;font-size:13px;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.4);pointer-events:none";
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(function(){
+    t.style.transition="opacity .3s";
+    t.style.opacity="0";
+    setTimeout(function(){t.remove();},300);
+  },2500);
+}
 
 
 function render(){
