@@ -1187,7 +1187,6 @@ function importStash(){
   importCode(code);
 }
 function importCode(code){
-  alert("importCode called with: "+code);
   if(!code||!code.trim()){alert("invalid stash code");return;}
   code=code.trim();
   sbAuthedFetch("shared_stashes?id=eq."+encodeURIComponent(code)+"&select=*")
@@ -1206,7 +1205,8 @@ function importCode(code){
         restoreCloudAudio();
       }
       var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
-      alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":" — NO storage_path on any track! tracks: "+JSON.stringify(ns.tracks.map(function(t){return {title:t.title,storage_path:t.storage_path};}))));
+      console.log("import complete",ns.name,"hasAudio:",hasAudio,"tracks:",ns.tracks.map(function(t){return {title:t.title,storage_path:t.storage_path};}));
+      alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":""));
     })
     .catch(function(err){
       console.error("importCode error",err);
