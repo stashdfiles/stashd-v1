@@ -926,9 +926,7 @@ function playTrack(fid,tid){
   };
   if(t.storage_path){
     // cloud-stored track - ALWAYS fetch a guaranteed-fresh signed url, ignore any cached src entirely
-    alert("fetching audio for: "+t.title+"\npath: "+t.storage_path);
     getTrackPlaybackUrl(t).then(function(url){
-      alert("result url: "+(url?url:"NULL - fetch failed"));
       if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
       if(url){
         t.src=url;doPlay(url);
@@ -1328,7 +1326,7 @@ function mkTrow(t,idx){
   // editable title
   var titleInp=document.createElement("input");titleInp.className="trow-title-input";titleInp.id="rename-"+t.id;
   titleInp.value=t.title;titleInp.title="click to rename";
-  titleInp.onclick=function(e){e.stopPropagation();};
+  titleInp.onclick=function(e){if(document.activeElement!==titleInp){e.stopPropagation();playTrack(t.fid,t.id);}};
   titleInp.onblur=function(){renameTrack(t.fid,t.id);};
   titleInp.onkeydown=function(e){if(e.key==="Enter")this.blur();};
   var by=document.createElement("div");by.className="trow-by";by.textContent=(t.artist||"—")+(t.fn?" · "+t.fn:"");
