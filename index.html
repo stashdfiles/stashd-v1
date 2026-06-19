@@ -924,6 +924,7 @@ function playTrack(fid,tid){
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
     console.error("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
   };
+  console.error("playTrack branch check:","filename="+t.filename,"inCache="+(!!(t.filename&&fileCache[t.filename])),"src="+(t.src?t.src.slice(0,50):"none"),"storage_path="+t.storage_path);
   if(t.filename&&fileCache[t.filename]){
     // file is in memory cache - create fresh blob url
     var freshUrl=URL.createObjectURL(fileCache[t.filename]);
@@ -1307,7 +1308,7 @@ function mkTrow(t,idx){
   row.oncontextmenu=function(e){showCtxMenu(e,t.fid,t.id);};
   row.ondragover=function(e){onDragOver(e,t.id);};
   row.ondrop=function(e){onDrop(e,t.fid,t.id);};
-  row.onclick=function(e){row.style.background="red";if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;playTrack(t.fid,t.id);};
+  row.onclick=function(e){if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;playTrack(t.fid,t.id);};
 
   // drag handle
   var drag=document.createElement("div");drag.className="trow-drag";
