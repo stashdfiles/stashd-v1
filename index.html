@@ -1187,6 +1187,7 @@ function importStash(){
   importCode(code);
 }
 function importCode(code){
+  alert("importCode called with: "+code);
   if(!code||!code.trim()){alert("invalid stash code");return;}
   code=code.trim();
   sbAuthedFetch("shared_stashes?id=eq."+encodeURIComponent(code)+"&select=*")
@@ -2998,11 +2999,12 @@ function enterApp(){
     pullCloudData().then(function(){
       render();
       updateSidebarProfile();
-      restoreCloudAudio();
       if(pendingShareCode){
         var codeToImport=pendingShareCode;
         pendingShareCode=null;
         importCode(codeToImport);
+      }else{
+        restoreCloudAudio();
       }
     });
   });
