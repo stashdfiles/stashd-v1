@@ -1205,7 +1205,7 @@ function importCode(code){
         restoreCloudAudio();
       }
       var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
-      alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":""));
+      alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":" — NO storage_path on any track! tracks: "+JSON.stringify(ns.tracks.map(function(t){return {title:t.title,storage_path:t.storage_path};}))));
     })
     .catch(function(err){
       console.error("importCode error",err);
