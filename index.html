@@ -3627,6 +3627,9 @@ function render(){
   else if(p==="profile")renderProfile();
 }
 
+document.body.addEventListener("click",function(e){
+  alert("CLICK DETECTED on: "+e.target.tagName+" class="+e.target.className+" text="+(e.target.textContent||"").slice(0,40));
+},true);
 initAuth();
 if(checkStoredKey())S.isPro=true;
 (function(){try{var bg=localStorage.getItem("stashd_bg");if(bg){var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+bg+")";document.body.classList.add("has-bg-image");}}catch(e){}})();
