@@ -924,9 +924,11 @@ function playTrack(fid,tid){
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
     console.error("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
   };
+  alert("playTrack reached storage_path check. t.storage_path="+t.storage_path);
   if(t.storage_path){
-    // cloud-stored track - ALWAYS fetch a guaranteed-fresh signed url, ignore any cached src entirely
+    alert("ENTERING storage_path branch, calling getTrackPlaybackUrl now");
     getTrackPlaybackUrl(t).then(function(url){
+      alert("getTrackPlaybackUrl RESOLVED with: "+url);
       if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
       if(url){
         t.src=url;doPlay(url);
@@ -3627,9 +3629,6 @@ function render(){
   else if(p==="profile")renderProfile();
 }
 
-document.body.addEventListener("click",function(e){
-  alert("CLICK DETECTED on: "+e.target.tagName+" class="+e.target.className+" text="+(e.target.textContent||"").slice(0,40));
-},true);
 initAuth();
 if(checkStoredKey())S.isPro=true;
 (function(){try{var bg=localStorage.getItem("stashd_bg");if(bg){var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+bg+")";document.body.classList.add("has-bg-image");}}catch(e){}})();
