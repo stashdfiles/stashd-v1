@@ -924,7 +924,20 @@ function playTrack(fid,tid){
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
     console.error("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
   };
-  if(t.filename&&fileCache[t.filename]){
+  if(t.storage_path){
+    // cloud-stored track - ALWAYS fetch a guaranteed-fresh signed url, ignore any cached src entirely
+    getTrackPlaybackUrl(t).then(function(url){
+      if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
+      if(url){
+        t.src=url;doPlay(url);
+      }else if(t.filename&&fileCache[t.filename]){
+        var freshUrl=URL.createObjectURL(fileCache[t.filename]);
+        t.src=freshUrl;doPlay(freshUrl);
+      }else{
+        showReloadPrompt(t.fid);
+      }
+    });
+  } else if(t.filename&&fileCache[t.filename]){
     // file is in memory cache - create fresh blob url
     var freshUrl=URL.createObjectURL(fileCache[t.filename]);
     t.src=freshUrl;doPlay(freshUrl);
@@ -936,27 +949,9 @@ function playTrack(fid,tid){
       if(actx&&actx.state==="suspended")actx.resume();
       aud.play().catch(function(err){
         if(myToken!==playRequestToken)return;
-        // blob expired - try cloud storage before giving up
-        if(t.storage_path){
-          getTrackPlaybackUrl(t).then(function(url){
-            if(myToken!==playRequestToken)return;
-            if(url){t.src=url;doPlay(url);}
-            else showReloadPrompt(t.fid);
-          });
-        }else{
-          showReloadPrompt(t.fid);
-        }
+        showReloadPrompt(t.fid);
       });
     }
-  } else if(t.storage_path){
-    // cloud-stored track - fetch a fresh signed url and play directly
-    getTrackPlaybackUrl(t).then(function(url){
-      if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
-      if(url){
-        t.src=url;doPlay(url);
-      }
-      else showReloadPrompt(t.fid);
-    });
   } else if(t.src){
     doPlay(t.src);
   } else if(t.filename){
