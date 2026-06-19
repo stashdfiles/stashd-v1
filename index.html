@@ -1145,17 +1145,36 @@ function askDelT(fid,tid){
 function openShare(fid,e){
   e.stopPropagation();var f=gS(fid);if(!f)return;
   document.getElementById("share-stash-name").textContent="\""+f.name+"\" - "+f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
-  var payload={
-    name:f.name,
-    art:f.art||null,
-    tracks:f.tracks.map(function(t){return{title:t.title,artist:t.artist,dur:t.dur,storage_path:t.storage_path||null};})
-  };
-  var code=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  var link=window.location.origin+"/?share="+code;
-  document.getElementById("share-code-display").textContent=link;
+  document.getElementById("share-code-display").textContent="generating link...";
   document.getElementById("share-copy-btn").textContent="copy link";
   document.getElementById("share-import-input").value="";
   showOv("ov-share");
+
+  var shareId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+  var payload={
+    id:shareId,
+    name:f.name,
+    art:f.art||null,
+    tracks:f.tracks.map(function(t){return{title:t.title,artist:t.artist,dur:t.dur,storage_path:t.storage_path||null};}),
+    created_by:currentSession&&currentSession.user?currentSession.user.id:null
+  };
+
+  sbAuthedFetch("shared_stashes","POST",payload)
+    .then(function(r){
+      return r.text().then(function(text){
+        if(!r.ok){
+          console.error("share creation failed",r.status,text);
+          document.getElementById("share-code-display").textContent="error creating share link";
+          return;
+        }
+        var link=window.location.origin+"/?share="+shareId;
+        document.getElementById("share-code-display").textContent=link;
+      });
+    })
+    .catch(function(err){
+      console.error("share creation network error",err);
+      document.getElementById("share-code-display").textContent="error creating share link";
+    });
 }
 function copyShareCode(){
   var link=document.getElementById("share-code-display").textContent;
@@ -1168,22 +1187,30 @@ function importStash(){
   importCode(code);
 }
 function importCode(code){
-  try{
-    var p=JSON.parse(decodeURIComponent(escape(atob(code))));
-    if(!p.name||!Array.isArray(p.tracks))throw 0;
-    var ns={id:S.nsid++,name:p.name+" (imported)",art:p.art||null,tracks:[]};
-    p.tracks.forEach(function(t){
-      ns.tracks.push({id:S.nid++,title:t.title,artist:t.artist,dur:t.dur,src:null,storage_path:t.storage_path||null,notes:""});
+  if(!code||!code.trim()){alert("invalid stash code");return;}
+  code=code.trim();
+  sbAuthedFetch("shared_stashes?id=eq."+encodeURIComponent(code)+"&select=*")
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(!data||!data.length){alert("invalid or expired stash code");return;}
+      var p=data[0];
+      if(!p.name||!Array.isArray(p.tracks)){alert("invalid stash code");return;}
+      var ns={id:S.nsid++,name:p.name+" (imported)",art:p.art||null,tracks:[]};
+      p.tracks.forEach(function(t){
+        ns.tracks.push({id:S.nid++,title:t.title,artist:t.artist,dur:t.dur,src:null,storage_path:t.storage_path||null,notes:""});
+      });
+      S.stashes.push(ns);
+      saveStashes();hideOv("ov-share");goPage("home");render();
+      if(currentSession&&currentSession.user){
+        restoreCloudAudio();
+      }
+      var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
+      alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":""));
+    })
+    .catch(function(err){
+      console.error("importCode error",err);
+      alert("invalid stash code");
     });
-    S.stashes.push(ns);
-    saveStashes();hideOv("ov-share");goPage("home");render();
-    if(currentSession&&currentSession.user){
-      restoreCloudAudio();
-    }
-    var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
-    alert("stash imported: "+ns.name+(hasAudio?" — audio is loading in the background":""));
-  }
-  catch(e){alert("invalid stash code");}
 }
 
 // listen for deep links from Electron (desktop build)
