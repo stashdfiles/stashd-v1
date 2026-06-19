@@ -926,7 +926,9 @@ function playTrack(fid,tid){
   };
   if(t.storage_path){
     // cloud-stored track - ALWAYS fetch a guaranteed-fresh signed url, ignore any cached src entirely
+    alert("fetching audio for: "+t.title+"\npath: "+t.storage_path);
     getTrackPlaybackUrl(t).then(function(url){
+      alert("result url: "+(url?url:"NULL - fetch failed"));
       if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
       if(url){
         t.src=url;doPlay(url);
