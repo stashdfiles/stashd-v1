@@ -375,6 +375,51 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 .note-save-btn:hover{opacity:.85}
 .note-discard-btn{background:none;border:0.5px solid var(--b2);color:var(--t2);padding:9px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
 .note-discard-btn:hover{border-color:var(--b3);color:var(--t1)}
+
+@media (max-width:768px){
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;z-index:300;
+    width:78vw;max-width:260px;
+    transform:translateX(-100%);
+    transition:transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  .sidebar.mobile-open{transform:translateX(0);box-shadow:8px 0 32px rgba(0,0,0,.5)}
+  .mobile-sidebar-backdrop{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:290;
+  }
+  .mobile-sidebar-backdrop.show{display:block}
+  .mobile-menu-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:32px;height:32px;border-radius:8px;background:var(--c1);
+    border:0.5px solid var(--b2);color:var(--t1);cursor:pointer;flex-shrink:0;
+  }
+  .topbar{padding:11px 14px;gap:8px}
+  .tb-title{font-size:14px}
+  .tb-sub{display:none}
+  .content{padding:14px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
+  .scard{padding:10px}
+  .pl-inner{padding:10px 12px 11px}
+  .pl-row1{gap:8px}
+  .pl-art{width:32px;height:32px}
+  .pl-controls{gap:6px}
+  .queue-panel,.note-panel{width:88vw;max-width:340px;right:-100vw}
+  .queue-panel.open,.note-panel.open{right:0}
+  .auth-box{width:88vw;max-width:340px;padding:24px 20px}
+  .fs-overlay{padding:20px}
+  .user-card{flex-wrap:wrap}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .add-btn{padding:7px 10px;font-size:12px}
+  .gradient-builder{padding:12px}
+  .prof-theme-grid{grid-template-columns:repeat(3,1fr)}
+}
+
+@media (max-width:420px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px}
+  .topbar{padding:10px 12px}
+  .content{padding:12px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+}
 </style>
 </head>
 <body>
@@ -448,7 +493,8 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 </div>
 <div class="app" id="app" style="display:none">
   <div class="mid">
-    <div class="sidebar">
+    <div class="mobile-sidebar-backdrop" id="mobile-backdrop" onclick="closeMobileSidebar()"></div>
+    <div class="sidebar" id="main-sidebar">
       <div class="sb-logo">
         <div class="sb-logo-img"><img id="sb-logo-img" src="logo.png" alt="" onerror="this.style.display='none'"></div>
         <span class="appname">stash'd</span>
@@ -498,6 +544,9 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
     </div>
     <div class="main">
       <div class="topbar">
+        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" style="display:none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <div><div class="tb-title" id="tb-title">home</div><div class="tb-sub" id="tb-sub">your music. your stash.</div></div>
         <div class="tb-right">
           <button class="hbtn" onclick="openFullscreen()" title="fullscreen"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>fullscreen</button>
@@ -1163,6 +1212,7 @@ var pendingShareCode=null;
 
 function goPage(p){
   S.page=p;S.activeStash=null;
+  closeMobileSidebar();
   ["home","search","favorites","liked","stats","people","settings","premium","profile"].forEach(function(x){var el=document.getElementById("sbn-"+x);if(el)el.classList.toggle("on",x===p);});
   var titles={home:"home",search:"search",favorites:"favorites",liked:"liked",stats:"listening stats",people:"people",settings:"settings",premium:"premium",profile:"profile"};
   var subs={home:"your music. your stash.",search:"find anything in your library",favorites:"tracks you have starred",liked:"tracks you have liked",stats:"your listening history",people:"find and follow other users",settings:"audio and display",premium:"unlock the full experience",profile:"customize your profile"};
@@ -1171,7 +1221,7 @@ function goPage(p){
   document.getElementById("add-btn").style.display=p==="home"?"flex":"none";
   render();
 }
-function openStash(id){S.activeStash=id;render();}
+function openStash(id){S.activeStash=id;closeMobileSidebar();render();}
 function closeStash(){S.activeStash=null;render();}
 
 function setEff(e){S.eff=e;applyEff();saveMeta();document.querySelectorAll(".eff-chip").forEach(function(c){c.classList.toggle("on",c.getAttribute("data-eff")===e);});var pill=document.getElementById("pl-eff");var lbl={bass:"bass boost",underwater:"underwater",car:"car mode",radio:"radio",vocal:"vocal",lofi:"lo-fi",studio:"studio"};if(e!=="none"){if(pill){pill.style.display="block";pill.textContent=lbl[e]||e;}}else{if(pill)pill.style.display="none";}}
@@ -3486,6 +3536,29 @@ function renderFollowList(){
     });
   });
 }
+
+
+/* ── MOBILE SIDEBAR ── */
+function toggleMobileSidebar(){
+  var sb=document.getElementById("main-sidebar");
+  var bd=document.getElementById("mobile-backdrop");
+  if(!sb||!bd)return;
+  var isOpen=sb.classList.contains("mobile-open");
+  if(isOpen){closeMobileSidebar();}
+  else{sb.classList.add("mobile-open");bd.classList.add("show");}
+}
+function closeMobileSidebar(){
+  var sb=document.getElementById("main-sidebar");
+  var bd=document.getElementById("mobile-backdrop");
+  if(sb)sb.classList.remove("mobile-open");
+  if(bd)bd.classList.remove("show");
+}
+function checkMobileMenuVisibility(){
+  var btn=document.querySelector(".mobile-menu-btn");
+  if(btn)btn.style.display=window.innerWidth<=768?"flex":"none";
+}
+window.addEventListener("resize",checkMobileMenuVisibility);
+checkMobileMenuVisibility();
 
 
 function render(){
