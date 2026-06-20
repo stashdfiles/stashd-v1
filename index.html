@@ -700,20 +700,6 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 <div class="overlay" id="ov-new"><div class="modal"><h3>new stash</h3><div class="modal-sub">organize your music</div><input type="text" id="new-name" placeholder="stash name..."><div class="mbtns"><button class="mbtn c" onclick="hideOv('ov-new')">cancel</button><button class="mbtn ok" onclick="doNew()">create</button></div></div></div>
 <div class="overlay" id="ov-del-s"><div class="confirm"><p id="del-s-msg"></p><div class="mbtns"><button class="mbtn c" onclick="hideOv('ov-del-s')">cancel</button><button class="mbtn d" id="del-s-ok">delete</button></div></div></div>
 <div class="overlay" id="ov-del-t"><div class="confirm"><p id="del-t-msg"></p><div class="mbtns"><button class="mbtn c" onclick="hideOv('ov-del-t')">cancel</button><button class="mbtn d" id="del-t-ok">remove</button></div></div></div>
-<div class="overlay" id="ov-share">
-  <div class="share-box">
-    <h3 style="color:var(--t1);font-size:15px;font-weight:600;margin-bottom:3px">share stash</h3>
-    <div style="font-size:12px;color:var(--t2);margin-bottom:12px" id="share-stash-name"></div>
-    <div style="font-size:11px;color:var(--t2);margin-bottom:3px">share code</div>
-    <div class="share-code" id="share-code-display"></div>
-    <button class="share-copy-btn" id="share-copy-btn" onclick="copyShareCode()">copy code</button>
-    <div style="display:flex;align-items:center;gap:10px;margin:14px 0"><div style="flex:1;height:0.5px;background:var(--b2)"></div><span style="font-size:11px;color:var(--t3)">or import</span><div style="flex:1;height:0.5px;background:var(--b2)"></div></div>
-    <div style="font-size:11px;color:var(--t2);margin-bottom:6px">paste a code to import</div>
-    <input class="share-import-input" type="text" id="share-import-input" placeholder="paste code here...">
-    <button class="share-import-btn" onclick="importStash()">import stash</button>
-    <div class="mbtns" style="margin-top:12px"><button class="mbtn c" onclick="hideOv('ov-share')">close</button></div>
-  </div>
-</div>
 <input type="file" id="gfile" accept="audio/*,image/gif" multiple style="display:none" onchange="handleAudio(event,null)">
 <input type="file" id="gfolder" webkitdirectory multiple accept="audio/*" style="display:none" onchange="handleFolder(event)">
 <audio id="aud"></audio><script>
@@ -924,11 +910,8 @@ function playTrack(fid,tid){
     var errNames={1:"ABORTED",2:"NETWORK",3:"DECODE",4:"SRC_NOT_SUPPORTED"};
     console.error("AUDIO ELEMENT ERROR: code="+errCode+" ("+(errNames[errCode]||"?")+") src="+aud.src.slice(0,120));
   };
-  alert("playTrack reached storage_path check. t.storage_path="+t.storage_path);
   if(t.storage_path){
-    alert("ENTERING storage_path branch, calling getTrackPlaybackUrl now");
     getTrackPlaybackUrl(t).then(function(url){
-      alert("getTrackPlaybackUrl RESOLVED with: "+url);
       if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
       if(url){
         t.src=url;doPlay(url);
@@ -1139,111 +1122,6 @@ function askDelT(fid,tid){
   document.getElementById("del-t-ok").onclick=function(){var f=gS(fid);if(!f)return;if(S.cur&&S.cur.tid===tid&&S.cur.fid===fid)stopCurrent();var delTrack=f.tracks.find(function(x){return x.id===tid;});if(delTrack&&delTrack.storage_path)deleteCloudAudio(delTrack.storage_path);f.tracks=f.tracks.filter(function(x){return x.id!==tid;});saveStashes();hideOv("ov-del-t");render();};
   showOv("ov-del-t");
 }
-function openShare(fid,e){
-  e.stopPropagation();var f=gS(fid);if(!f)return;
-  document.getElementById("share-stash-name").textContent="\""+f.name+"\" - "+f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
-  document.getElementById("share-code-display").textContent="generating link...";
-  document.getElementById("share-copy-btn").textContent="copy link";
-  document.getElementById("share-import-input").value="";
-  showOv("ov-share");
-
-  var shareId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
-  var payload={
-    id:shareId,
-    name:f.name,
-    art:f.art||null,
-    tracks:f.tracks.map(function(t){return{title:t.title,artist:t.artist,dur:t.dur,storage_path:t.storage_path||null};}),
-    created_by:currentSession&&currentSession.user?currentSession.user.id:null
-  };
-
-  sbAuthedFetch("shared_stashes","POST",payload)
-    .then(function(r){
-      return r.text().then(function(text){
-        if(!r.ok){
-          console.error("share creation failed",r.status,text);
-          document.getElementById("share-code-display").textContent="error creating share link";
-          return;
-        }
-        var link=window.location.origin+"/?share="+shareId;
-        document.getElementById("share-code-display").textContent=link;
-      });
-    })
-    .catch(function(err){
-      console.error("share creation network error",err);
-      document.getElementById("share-code-display").textContent="error creating share link";
-    });
-}
-function copyShareCode(){
-  var link=document.getElementById("share-code-display").textContent;
-  navigator.clipboard.writeText(link).then(function(){var b=document.getElementById("share-copy-btn");b.textContent="copied!";setTimeout(function(){b.textContent="copy link";},2000);}).catch(function(){});
-}
-function importStash(){
-  var code=document.getElementById("share-import-input").value.trim();if(!code)return;
-  // support both raw code and stashd:// links
-  if(code.startsWith("stashd://share/")){code=code.replace("stashd://share/","");}
-  importCode(code);
-}
-function importCode(code){
-  if(!code||!code.trim()){alert("invalid stash code");return;}
-  code=code.trim();
-  sbAuthedFetch("shared_stashes?id=eq."+encodeURIComponent(code)+"&select=*")
-    .then(function(r){return r.json();})
-    .then(function(data){
-      if(!data||!data.length){alert("invalid or expired stash code");return;}
-      var p=data[0];
-      if(!p.name||!Array.isArray(p.tracks)){alert("invalid stash code");return;}
-      var ns={id:S.nsid++,name:p.name+" (imported)",art:p.art||null,tracks:[]};
-      p.tracks.forEach(function(t){
-        ns.tracks.push({id:S.nid++,title:t.title,artist:t.artist,dur:t.dur,src:null,storage_path:t.storage_path||null,notes:""});
-      });
-      S.stashes.push(ns);
-      saveStashes();hideOv("ov-share");goPage("home");render();
-      var hasAudio=ns.tracks.some(function(t){return t.storage_path;});
-      showToast("stash imported: "+ns.name+(hasAudio?" — audio loading":""));
-      // resolve playback urls ONLY for this specific new stash's tracks, sequentially, no race with anything else
-      if(currentSession&&currentSession.user&&hasAudio){
-        var chain=Promise.resolve();
-        ns.tracks.forEach(function(track){
-          if(!track.storage_path)return;
-          chain=chain.then(function(){
-            return getTrackPlaybackUrl(track).then(function(url){
-              if(url)track.src=url;
-            });
-          });
-        });
-        chain.then(function(){render();});
-      }
-    })
-    .catch(function(err){
-      console.error("importCode error",err);
-      alert("invalid stash code");
-    });
-}
-
-// listen for deep links from Electron (desktop build)
-if(window.stashd){
-  window.stashd.onDeepLink(function(url){
-    if(url.startsWith("stashd://share/")){
-      var code=url.replace("stashd://share/","");
-      importCode(code);
-    }
-  });
-}
-
-// web equivalent: check ?share= URL param on load
-var pendingShareCode=null;
-(function(){
-  try{
-    var params=new URLSearchParams(window.location.search);
-    var shareCode=params.get("share");
-    if(shareCode){
-      pendingShareCode=shareCode;
-      // clean the URL so refreshing doesn't re-trigger
-      window.history.replaceState({},document.title,window.location.pathname);
-    }
-  }catch(e){}
-})();
-
 function goPage(p){
   S.page=p;S.activeStash=null;
   closeMobileSidebar();
@@ -1448,9 +1326,7 @@ function renderHome(){
     nm.onkeydown=function(e){if(e.key==="Enter")this.blur();if(e.key==="Escape"){this.value=gS(f.id).name;this.blur();}};
     var ct=document.createElement("div");ct.className="scard-ct";ct.textContent=f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
     meta.appendChild(nm);meta.appendChild(ct);
-    var shareBtn=document.createElement("button");shareBtn.className="scard-share-btn";shareBtn.title="share";
-    shareBtn.appendChild(sv(13,13,SHARE_SVG));(function(fid){shareBtn.onclick=function(e){openShare(fid,e);};})(f.id);
-    foot.appendChild(meta);foot.appendChild(shareBtn);
+    foot.appendChild(meta);
     card.appendChild(delDot);card.appendChild(art);card.appendChild(foot);
     grid.appendChild(card);
   });
@@ -3005,13 +2881,7 @@ function enterApp(){
     pullCloudData().then(function(){
       render();
       updateSidebarProfile();
-      if(pendingShareCode){
-        var codeToImport=pendingShareCode;
-        pendingShareCode=null;
-        importCode(codeToImport);
-      }else{
-        restoreCloudAudio();
-      }
+      restoreCloudAudio();
     });
   });
 }
