@@ -702,6 +702,37 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 <div class="overlay" id="ov-del-t"><div class="confirm"><p id="del-t-msg"></p><div class="mbtns"><button class="mbtn c" onclick="hideOv('ov-del-t')">cancel</button><button class="mbtn d" id="del-t-ok">remove</button></div></div></div>
 <input type="file" id="gfile" accept="audio/*,image/gif" multiple style="display:none" onchange="handleAudio(event,null)">
 <input type="file" id="gfolder" webkitdirectory multiple accept="audio/*" style="display:none" onchange="handleFolder(event)">
+<div class="overlay" id="ov-share">
+  <div class="share-box">
+    <h3 style="color:var(--t1);font-size:15px;font-weight:600;margin-bottom:3px">share stash (listen only)</h3>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:12px" id="share-stash-name"></div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:3px">share link</div>
+    <div class="share-code" id="share-code-display"></div>
+    <button class="share-copy-btn" id="share-copy-btn" onclick="copyShareCode()">copy link</button>
+    <div style="font-size:11px;color:var(--t3);margin-top:10px;line-height:1.5">anyone with this link can listen to this stash. if you add or remove songs, the link automatically reflects the change.</div>
+    <div class="mbtns" style="margin-top:14px"><button class="mbtn c" onclick="hideOv('ov-share')">close</button></div>
+  </div>
+</div>
+
+<div id="listen-view" style="display:none;position:fixed;inset:0;background:#0a0a0a;z-index:1000;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:0.5px solid rgba(255,255,255,.1)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="logo.png" style="width:22px;height:22px;border-radius:6px" alt="">
+      <span style="color:#fff;font-weight:700;font-size:14px">stash'd</span>
+      <span style="color:#666;font-size:11px;margin-left:6px">listen only</span>
+    </div>
+    <button onclick="closeListenView()" style="background:none;border:0.5px solid rgba(255,255,255,.15);color:#aaa;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit">close</button>
+  </div>
+  <div id="listen-body" style="flex:1;overflow-y:auto;padding:24px;max-width:560px;margin:0 auto;width:100%"></div>
+  <div id="listen-player" style="display:none;border-top:0.5px solid rgba(255,255,255,.1);padding:14px 20px;align-items:center;gap:14px">
+    <div style="flex:1;min-width:0">
+      <div id="listen-now-title" style="color:#fff;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      <div id="listen-now-artist" style="color:#888;font-size:11px"></div>
+    </div>
+  </div>
+  <audio id="listen-audio" controls style="width:100%"></audio>
+</div>
+
 <audio id="aud"></audio><script>
 var S = {
   page:"home", activeStash:null, cur:null, playing:false,
@@ -1326,7 +1357,9 @@ function renderHome(){
     nm.onkeydown=function(e){if(e.key==="Enter")this.blur();if(e.key==="Escape"){this.value=gS(f.id).name;this.blur();}};
     var ct=document.createElement("div");ct.className="scard-ct";ct.textContent=f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
     meta.appendChild(nm);meta.appendChild(ct);
-    foot.appendChild(meta);
+    var shareBtn=document.createElement("button");shareBtn.className="scard-share-btn";shareBtn.title="share";
+    shareBtn.appendChild(sv(13,13,SHARE_SVG));(function(fid){shareBtn.onclick=function(e){openShare(fid,e);};})(f.id);
+    foot.appendChild(meta);foot.appendChild(shareBtn);
     card.appendChild(delDot);card.appendChild(art);card.appendChild(foot);
     grid.appendChild(card);
   });
@@ -3483,6 +3516,187 @@ function showToast(msg){
 
 
 
+/* ── LIVE STASH SHARING (listen-only, always reflects current state) ── */
+function openShare(fid,e){
+  if(e)e.stopPropagation();
+  var f=gS(fid);if(!f)return;
+  if(!currentSession||!currentSession.user){alert("log in to share stashes");return;}
+  document.getElementById("share-stash-name").textContent="\""+f.name+"\" - "+f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
+  document.getElementById("share-code-display").textContent="generating link...";
+  document.getElementById("share-copy-btn").textContent="copy link";
+  showOv("ov-share");
+
+  var shareId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+  sbAuthedFetch("stash_shares","POST",{
+    id:shareId,
+    owner_id:currentSession.user.id,
+    stash_id:f.id
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("share creation failed",r.status,text);
+        document.getElementById("share-code-display").textContent="error creating share link";
+        return;
+      }
+      var link=window.location.origin+window.location.pathname+"?listen="+shareId;
+      document.getElementById("share-code-display").textContent=link;
+    });
+  }).catch(function(err){
+    console.error("share creation network error",err);
+    document.getElementById("share-code-display").textContent="error creating share link";
+  });
+}
+
+function copyShareCode(){
+  var link=document.getElementById("share-code-display").textContent;
+  if(!link||link.indexOf("http")!==0)return;
+  navigator.clipboard.writeText(link).then(function(){
+    var b=document.getElementById("share-copy-btn");
+    b.textContent="copied!";
+    setTimeout(function(){b.textContent="copy link";},1500);
+  }).catch(function(){});
+}
+
+/* ── LISTEN-ONLY VIEWER (for people opening a shared link) ── */
+var listenShareId=null;
+var listenStashData=null;
+
+function openListenView(shareId){
+  listenShareId=shareId;
+  S.page="listen";
+  document.getElementById("app").style.display="none";
+  document.getElementById("auth-screen").style.display="none";
+  document.getElementById("username-screen").style.display="none";
+  var lv=document.getElementById("listen-view");
+  if(lv)lv.style.display="flex";
+  loadListenStash();
+}
+
+function closeListenView(){
+  listenShareId=null;
+  var lv=document.getElementById("listen-view");
+  if(lv)lv.style.display="none";
+  window.history.replaceState({},document.title,window.location.pathname);
+  if(currentSession){
+    document.getElementById("app").style.display="";
+  }else{
+    document.getElementById("auth-screen").style.display="flex";
+  }
+}
+
+function loadListenStash(){
+  var body=document.getElementById("listen-body");
+  body.innerHTML="<div style='color:#888;text-align:center;padding:60px 0'>loading...</div>";
+
+  sbAuthedFetch("stash_shares?id=eq."+encodeURIComponent(listenShareId)+"&select=*")
+    .then(function(r){return r.json();})
+    .then(function(shares){
+      if(!shares||!shares.length){
+        body.innerHTML="<div style='color:#888;text-align:center;padding:60px 0'>this share link is invalid or has been removed</div>";
+        return;
+      }
+      var share=shares[0];
+      // fetch the live stash data directly from the owner's user_data row
+      return sbAuthedFetch("user_data?id=eq."+share.owner_id+"&select=stashes")
+        .then(function(r){return r.json();})
+        .then(function(rows){
+          if(!rows||!rows.length||!rows[0].stashes||!rows[0].stashes.stashes){
+            body.innerHTML="<div style='color:#888;text-align:center;padding:60px 0'>couldn't load this stash</div>";
+            return;
+          }
+          var stash=rows[0].stashes.stashes.find(function(f){return f.id===share.stash_id;});
+          if(!stash){
+            body.innerHTML="<div style='color:#888;text-align:center;padding:60px 0'>this stash no longer exists</div>";
+            return;
+          }
+          listenStashData={stash:stash,ownerId:share.owner_id};
+          renderListenStash();
+        });
+    }).catch(function(err){
+      console.error("loadListenStash error",err);
+      body.innerHTML="<div style='color:#888;text-align:center;padding:60px 0'>something went wrong loading this stash</div>";
+    });
+}
+
+function renderListenStash(){
+  var body=document.getElementById("listen-body");
+  body.innerHTML="";
+  var stash=listenStashData.stash;
+
+  var header=document.createElement("div");header.style.cssText="display:flex;align-items:center;gap:16px;margin-bottom:24px";
+  var art=document.createElement("div");art.style.cssText="width:64px;height:64px;border-radius:10px;background:#1a1a1a;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center";
+  if(stash.art){var img=document.createElement("img");img.src=stash.art;img.style.cssText="width:100%;height:100%;object-fit:cover";art.appendChild(img);}
+  var info=document.createElement("div");
+  var title=document.createElement("div");title.style.cssText="font-size:18px;font-weight:700;color:#fff";title.textContent=stash.name;
+  var sub=document.createElement("div");sub.style.cssText="font-size:12px;color:#888;margin-top:2px";sub.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
+  info.appendChild(title);info.appendChild(sub);
+  header.appendChild(art);header.appendChild(info);
+  body.appendChild(header);
+
+  var list=document.createElement("div");
+  stash.tracks.forEach(function(t,i){
+    var row=document.createElement("div");
+    row.style.cssText="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;transition:background .15s";
+    row.onmouseenter=function(){row.style.background="rgba(255,255,255,.05)";};
+    row.onmouseleave=function(){row.style.background="";};
+    var num=document.createElement("div");num.style.cssText="width:20px;color:#666;font-size:12px;text-align:center;flex-shrink:0";num.textContent=i+1;
+    var titleEl=document.createElement("div");titleEl.style.cssText="flex:1;min-width:0";
+    var tt=document.createElement("div");tt.style.cssText="color:#fff;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";tt.textContent=t.title;
+    var ta=document.createElement("div");ta.style.cssText="color:#888;font-size:11px";ta.textContent=t.artist||"";
+    titleEl.appendChild(tt);titleEl.appendChild(ta);
+    var dur=document.createElement("div");dur.style.cssText="color:#666;font-size:12px;flex-shrink:0";dur.textContent=t.dur||"—";
+    row.appendChild(num);row.appendChild(titleEl);row.appendChild(dur);
+    row.onclick=function(){playListenTrack(t,i);};
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+}
+
+function playListenTrack(track,idx){
+  if(!track.storage_path){
+    alert("this track's audio isn't available");
+    return;
+  }
+  var aud=document.getElementById("listen-audio");
+  var titleEl=document.getElementById("listen-now-title");
+  var artistEl=document.getElementById("listen-now-artist");
+  titleEl.textContent=track.title;
+  artistEl.textContent=track.artist||"";
+  document.getElementById("listen-player").style.display="flex";
+
+  fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
+    method:"POST",
+    headers:{
+      "apikey":SB_KEY,
+      "Authorization":"Bearer "+(currentSession?currentSession.access_token:SB_KEY),
+      "Content-Type":"application/json"
+    },
+    body:JSON.stringify({expiresIn:3600})
+  }).then(function(r){return r.json();})
+  .then(function(data){
+    if(data&&data.signedURL){
+      aud.src=SB_URL+"/storage/v1"+data.signedURL;
+      aud.play().catch(function(err){console.error("listen playback failed",err);});
+    }else{
+      alert("couldn't load this track's audio");
+    }
+  }).catch(function(err){
+    console.error("playListenTrack error",err);
+    alert("couldn't load this track's audio");
+  });
+}
+
+// check for ?listen= URL param on load
+var pendingListenId=null;
+(function(){
+  try{
+    var params=new URLSearchParams(window.location.search);
+    var listenId=params.get("listen");
+    if(listenId)pendingListenId=listenId;
+  }catch(e){}
+})();
+
+
 function render(){
   renderSidebar();
   var p=S.page;
@@ -3499,7 +3713,11 @@ function render(){
   else if(p==="profile")renderProfile();
 }
 
-initAuth();
+if(pendingListenId){
+  openListenView(pendingListenId);
+}else{
+  initAuth();
+}
 if(checkStoredKey())S.isPro=true;
 (function(){try{var bg=localStorage.getItem("stashd_bg");if(bg){var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+bg+")";document.body.classList.add("has-bg-image");}}catch(e){}})();
 (function(){try{if(S.theme&&S.theme!=="default")document.getElementById("app").setAttribute("data-theme",S.theme);}catch(e){}})();
