@@ -1414,7 +1414,12 @@ function renderSharedWithYouSection(container){
       fetchLiveSharedStash(invite).then(function(stash){
         if(!stash)return;
         var card=document.createElement("div");card.className="scard";card.style.cursor="pointer";
-        card.onclick=function(){openSharedStash(invite,stash);};
+        card.onclick=function(){if(card.dataset.suppressClick)return;openSharedStash(invite,stash);};
+        var sharedSize=getSharedStashSize(invite.id);
+        card.style.width=(180*sharedSize)+"px";
+        var resizeHandle=document.createElement("div");resizeHandle.className="scard-resize-handle";
+        resizeHandle.onmousedown=function(e){startSharedStashResize(e,invite.id,card);};
+        card.appendChild(resizeHandle);
         var art=document.createElement("div");art.className="scard-art";
         if(stash.art){var aimg=document.createElement("img");aimg.src=stash.art;art.appendChild(aimg);}
         else{var as=sv(28,28,MUSIC_SVG);as.style.color="var(--t3)";art.appendChild(as);}
@@ -3856,6 +3861,47 @@ function fetchLiveSharedStash(invite){
       var stash=rows[0].stashes.stashes.find(function(f){return f.id===invite.stash_id;});
       return stash||null;
     }).catch(function(){return null;});
+}
+
+
+/* ── SHARED STASH CARD SIZING (local to viewer, since the data isn't theirs to edit) ── */
+function getSharedStashSize(inviteId){
+  try{
+    var sizes=JSON.parse(localStorage.getItem("stashd_shared_sizes")||"{}");
+    return sizes[inviteId]||1;
+  }catch(e){return 1;}
+}
+function setSharedStashSize(inviteId,size){
+  try{
+    var sizes=JSON.parse(localStorage.getItem("stashd_shared_sizes")||"{}");
+    sizes[inviteId]=size;
+    localStorage.setItem("stashd_shared_sizes",JSON.stringify(sizes));
+  }catch(e){}
+}
+function startSharedStashResize(e,inviteId,card){
+  e.preventDefault();e.stopPropagation();
+  var startX=e.clientX;
+  var startWidth=card.offsetWidth;
+  var minWidth=120;
+  var maxWidth=420;
+  card.classList.add("resizing");
+  card.dataset.suppressClick="1";
+
+  function onMove(ev){
+    var delta=ev.clientX-startX;
+    var newWidth=Math.max(minWidth,Math.min(maxWidth,startWidth+delta));
+    card.style.width=newWidth+"px";
+  }
+  function onUp(ev){
+    document.removeEventListener("mousemove",onMove);
+    document.removeEventListener("mouseup",onUp);
+    card.classList.remove("resizing");
+    var finalWidth=card.offsetWidth;
+    setSharedStashSize(inviteId,Math.round((finalWidth/180)*100)/100);
+    setTimeout(function(){delete card.dataset.suppressClick;},50);
+  }
+  document.addEventListener("mousemove",onMove);
+  document.addEventListener("mouseup",onUp);
 }
 
 
