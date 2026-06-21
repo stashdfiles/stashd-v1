@@ -1458,6 +1458,17 @@ function renderSharedStashView(){
   back.onclick=function(){goPage("home");};
   wrap.appendChild(back);
 
+  var header=document.createElement("div");header.style.cssText="display:flex;align-items:center;gap:16px;margin:18px 0 24px";
+  var headerArt=document.createElement("div");headerArt.style.cssText="width:80px;height:80px;border-radius:10px;background:var(--c2);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center";
+  if(stash.art){var hImg=document.createElement("img");hImg.src=stash.art;hImg.style.cssText="width:100%;height:100%;object-fit:cover";headerArt.appendChild(hImg);}
+  else{var hIcon=sv(28,28,MUSIC_SVG);hIcon.style.color="var(--t3)";headerArt.appendChild(hIcon);}
+  var headerInfo=document.createElement("div");
+  var headerTitle=document.createElement("div");headerTitle.style.cssText="font-size:20px;font-weight:700;color:var(--t1)";headerTitle.textContent=stash.name;
+  var headerSub=document.createElement("div");headerSub.style.cssText="font-size:12px;color:var(--t3);margin-top:3px";headerSub.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
+  headerInfo.appendChild(headerTitle);headerInfo.appendChild(headerSub);
+  header.appendChild(headerArt);header.appendChild(headerInfo);
+  wrap.appendChild(header);
+
   stash.tracks.forEach(function(t,i){
     var row=document.createElement("div");row.className="trow";
     row.style.cursor="pointer";
