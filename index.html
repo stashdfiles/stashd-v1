@@ -1464,7 +1464,8 @@ function renderSharedStashView(){
   else{var hIcon=sv(28,28,MUSIC_SVG);hIcon.style.color="var(--t3)";headerArt.appendChild(hIcon);}
   var headerInfo=document.createElement("div");
   var headerTitle=document.createElement("div");headerTitle.style.cssText="font-size:20px;font-weight:700;color:var(--t1)";headerTitle.textContent=stash.name;
-  var headerSub=document.createElement("div");headerSub.style.cssText="font-size:12px;color:var(--t2);margin-top:3px";headerSub.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
+  var canDownload=data.invite&&data.invite.permission==="download";
+  var headerSub=document.createElement("div");headerSub.style.cssText="font-size:12px;color:var(--t2);margin-top:3px";headerSub.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+(canDownload?" · download enabled":" · listen only");
   headerInfo.appendChild(headerTitle);headerInfo.appendChild(headerSub);
   header.appendChild(headerArt);header.appendChild(headerInfo);
   wrap.appendChild(header);
@@ -1487,11 +1488,45 @@ function renderSharedStashView(){
     var dur=document.createElement("div");dur.className="trow-dur";dur.textContent=t.dur||"—";
 
     row.appendChild(n);row.appendChild(artEl);row.appendChild(info);row.appendChild(dur);
+
+    if(canDownload){
+      var acts=document.createElement("div");acts.className="trow-acts";
+      var dlBtn=document.createElement("button");dlBtn.className="note-btn";dlBtn.title="download";
+      dlBtn.innerHTML="<svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><path d='M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>";
+      dlBtn.onclick=function(e){e.stopPropagation();downloadSharedTrack(t);};
+      acts.appendChild(dlBtn);
+      row.appendChild(acts);
+    }
+
     listWrap.appendChild(row);
   });
   wrap.appendChild(listWrap);
 
   c.appendChild(wrap);
+}
+
+function downloadSharedTrack(track){
+  if(!track.storage_path){alert("this track's audio isn't available");return;}
+  fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
+    method:"POST",
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token,"Content-Type":"application/json"},
+    body:JSON.stringify({expiresIn:60,download:true})
+  }).then(function(r){return r.json();})
+  .then(function(data){
+    if(data&&data.signedURL){
+      var a=document.createElement("a");
+      a.href=SB_URL+"/storage/v1"+data.signedURL;
+      a.download=track.title+(track.storage_path.includes(".")?"."+track.storage_path.split(".").pop():"");
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }else{
+      alert("couldn't download this track");
+    }
+  }).catch(function(err){
+    console.error("downloadSharedTrack error",err);
+    alert("couldn't download this track");
+  });
 }
 
 function playSharedTrack(track){
@@ -3736,22 +3771,26 @@ function searchInviteCandidates(query){
       var info=document.createElement("div");info.className="user-card-info";
       var name=document.createElement("div");name.className="user-card-name";name.style.fontSize="12px";name.textContent="@"+u.username;
       info.appendChild(name);
+      var permSelect=document.createElement("select");
+      permSelect.style.cssText="background:var(--c2);border:0.5px solid var(--b2);color:var(--t2);font-size:10px;border-radius:6px;padding:3px 4px;margin-right:4px;font-family:inherit";
+      permSelect.innerHTML="<option value='listen'>listen</option><option value='download'>download</option>";
       var btn=document.createElement("button");btn.className="follow-btn";btn.textContent="invite";
-      btn.onclick=function(){sendInvite(u);};
-      row.appendChild(pic);row.appendChild(info);row.appendChild(btn);
+      btn.onclick=function(){sendInvite(u,permSelect.value);};
+      row.appendChild(pic);row.appendChild(info);row.appendChild(permSelect);row.appendChild(btn);
       resultsWrap.appendChild(row);
     });
   });
 }
 
-function sendInvite(user){
+function sendInvite(user,permission){
   var inviteId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
   sbAuthedFetch("stash_invites?on_conflict=owner_id,stash_id,invitee_id","POST",{
     id:inviteId,
     owner_id:currentSession.user.id,
     stash_id:shareTargetFid,
     invitee_id:user.id,
-    status:"pending"
+    status:"pending",
+    permission:permission||"listen"
   }).then(function(r){
     return r.text().then(function(text){
       if(!r.ok){
@@ -3793,11 +3832,15 @@ function renderInviteManageList(fid){
           var name=document.createElement("div");name.className="user-card-name";name.style.fontSize="12px";name.textContent="@"+u.username;
           var status=document.createElement("div");status.className="user-card-bio";status.textContent=inv.status;
           info.appendChild(name);info.appendChild(status);
+          var permSelect=document.createElement("select");
+          permSelect.style.cssText="background:var(--c2);border:0.5px solid var(--b2);color:var(--t2);font-size:10px;border-radius:6px;padding:3px 4px;margin-right:4px;font-family:inherit";
+          permSelect.innerHTML="<option value='listen'"+(inv.permission==="listen"?" selected":"")+">listen</option><option value='download'"+(inv.permission==="download"?" selected":"")+">download</option>";
+          permSelect.onchange=function(){updateInvitePermission(inv.id,permSelect.value);};
           var resetBtn=document.createElement("button");resetBtn.className="follow-btn";resetBtn.style.fontSize="11px";resetBtn.textContent="reset";
           resetBtn.onclick=function(){resetInvite(inv,u);};
           var removeBtn=document.createElement("button");removeBtn.className="follow-btn following";removeBtn.style.fontSize="11px";removeBtn.style.marginLeft="6px";removeBtn.textContent="remove";
           removeBtn.onclick=function(){removeInvite(inv.id,fid);};
-          row.appendChild(pic);row.appendChild(info);row.appendChild(resetBtn);row.appendChild(removeBtn);
+          row.appendChild(pic);row.appendChild(info);row.appendChild(permSelect);row.appendChild(resetBtn);row.appendChild(removeBtn);
           listWrap.appendChild(row);
         });
       });
@@ -3812,8 +3855,13 @@ function resetInvite(invite,user){
     method:"DELETE",
     headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token}
   }).then(function(){
-    sendInvite(user);
+    sendInvite(user,invite.permission);
   }).catch(function(err){console.error("resetInvite error",err);});
+}
+
+function updateInvitePermission(inviteId,permission){
+  sbAuthedFetch("stash_invites?id=eq."+inviteId,"PATCH",{permission:permission})
+    .catch(function(err){console.error("updateInvitePermission error",err);});
 }
 
 function removeInvite(inviteId,fid){
