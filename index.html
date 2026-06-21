@@ -60,8 +60,12 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 .fadein{animation:fadeUp .2s ease forwards}
 @keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
 .sec-title{font-size:10px;color:var(--t2);letter-spacing:.8px;margin-bottom:12px;font-weight:500}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px;margin-bottom:24px}
-.scard{background:var(--c1);border:0.5px solid var(--b1);border-radius:12px;cursor:pointer;position:relative;user-select:none;transition:all .18s;overflow:visible}
+.grid{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:24px}
+.scard{background:var(--c1);border:0.5px solid var(--b1);border-radius:12px;cursor:pointer;position:relative;user-select:none;transition:border-color .18s,box-shadow .18s,transform .18s;overflow:visible;width:180px;flex-shrink:0}
+.scard.resizing{transition:none}
+.scard-resize-handle{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;cursor:nwse-resize;z-index:5;opacity:0;transition:opacity .15s}
+.scard:hover .scard-resize-handle{opacity:1}
+.scard-resize-handle::after{content:"";position:absolute;bottom:3px;right:3px;width:9px;height:9px;border-right:2px solid var(--t3);border-bottom:2px solid var(--t3);border-radius:0 0 3px 0}
 .scard:hover{border-color:var(--b3);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.5)}
 .scard-art{width:100%;aspect-ratio:1;background:var(--c2);border-radius:12px 12px 0 0;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative}
 .scard-art img{width:100%;height:100%;object-fit:cover}
@@ -757,7 +761,7 @@ function saveStashesLocal(){
   try{
     // save stashes without blob URLs (those don't persist) - save art as dataURL
     var toSave=S.stashes.map(function(f){
-      return {id:f.id,name:f.name,art:f.art||null,
+      return {id:f.id,name:f.name,art:f.art||null,size:f.size||1,
         tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
     });
     localStorage.setItem("stashd_stashes",JSON.stringify({stashes:toSave,nid:S.nid,nsid:S.nsid}));
@@ -1308,6 +1312,10 @@ function renderHome(){
   var grid=document.createElement("div");grid.className="grid";
   S.stashes.forEach(function(f){
     var card=document.createElement("div");card.className="scard";card.onclick=function(){openStash(f.id);};
+    card.style.width=(180*(f.size||1))+"px";
+    var resizeHandle=document.createElement("div");resizeHandle.className="scard-resize-handle";
+    resizeHandle.onmousedown=function(e){startStashResize(e,f,card);};
+    card.appendChild(resizeHandle);
     var delDot=document.createElement("div");delDot.className="del-dot";
     var ds=sv(9,9,DEL_SVG);ds.setAttribute("stroke","#555");ds.setAttribute("stroke-width","2.5");
     delDot.appendChild(ds);delDot.onclick=function(e){e.stopPropagation();askDelS(f.id);};
@@ -3118,7 +3126,7 @@ var cloudSyncInProgress=false;
 
 function buildCloudSyncBody(){
   var toSaveStashes=S.stashes.map(function(f){
-    return {id:f.id,name:f.name,art:f.art||null,
+    return {id:f.id,name:f.name,art:f.art||null,size:f.size||1,
       tracks:f.tracks.map(function(t){return {id:t.id,title:t.title,artist:t.artist,dur:t.dur,notes:t.notes||"",filename:t.filename||"",storage_path:t.storage_path||null};})};
   });
   var metaPayload={liked:S.liked,starred:S.starred,playCounts:S.playCounts,playSeconds:S.playSeconds,theme:S.theme,eff:S.eff,speed:S.speed,eq:S.eq,opts:S.opts,profile:S.profile};
@@ -3484,6 +3492,33 @@ function showToast(msg){
 
 
 /* ── LIVE STASH SHARING (listen-only, always reflects current state) ── */
+
+/* ── STASH CARD RESIZING ── */
+function startStashResize(e,f,card){
+  e.preventDefault();e.stopPropagation();
+  var startX=e.clientX;
+  var startWidth=card.offsetWidth;
+  var minWidth=120;
+  var maxWidth=420;
+  card.classList.add("resizing");
+
+  function onMove(ev){
+    var delta=ev.clientX-startX;
+    var newWidth=Math.max(minWidth,Math.min(maxWidth,startWidth+delta));
+    card.style.width=newWidth+"px";
+  }
+  function onUp(ev){
+    document.removeEventListener("mousemove",onMove);
+    document.removeEventListener("mouseup",onUp);
+    card.classList.remove("resizing");
+    var finalWidth=card.offsetWidth;
+    f.size=Math.round((finalWidth/180)*100)/100;
+    saveStashes();
+  }
+  document.addEventListener("mousemove",onMove);
+  document.addEventListener("mouseup",onUp);
+}
+
 
 function render(){
   renderSidebar();
