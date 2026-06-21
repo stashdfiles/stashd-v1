@@ -2252,7 +2252,20 @@ function duplicateTrack(fid,tid){
 function exportTrack(fid,tid){
   var t=gT(fid,tid);if(!t)return;
   if(!t.src){alert("reload the audio file first before exporting");return;}
-  var a=document.createElement("a");a.href=t.src;a.download=t.title+".mp3";a.click();
+  var ext=t.storage_path&&t.storage_path.includes(".")?"."+t.storage_path.split(".").pop():(t.filename&&t.filename.includes(".")?"."+t.filename.split(".").pop():".mp3");
+  fetch(t.src).then(function(r){return r.blob();}).then(function(blob){
+    var blobUrl=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=blobUrl;
+    a.download=t.title+ext;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){URL.revokeObjectURL(blobUrl);},1000);
+  }).catch(function(err){
+    console.error("exportTrack error",err);
+    alert("couldn't export this track");
+  });
 }
 
 /* ── UNDO/REDO ── */
