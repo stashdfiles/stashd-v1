@@ -1510,19 +1510,23 @@ function downloadSharedTrack(track){
   fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
     method:"POST",
     headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token,"Content-Type":"application/json"},
-    body:JSON.stringify({expiresIn:60,download:true})
+    body:JSON.stringify({expiresIn:60})
   }).then(function(r){return r.json();})
   .then(function(data){
-    if(data&&data.signedURL){
-      var a=document.createElement("a");
-      a.href=SB_URL+"/storage/v1"+data.signedURL;
-      a.download=track.title+(track.storage_path.includes(".")?"."+track.storage_path.split(".").pop():"");
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }else{
-      alert("couldn't download this track");
-    }
+    if(!data||!data.signedURL){alert("couldn't download this track");return;}
+    return fetch(SB_URL+"/storage/v1"+data.signedURL).then(function(r){return r.blob();});
+  })
+  .then(function(blob){
+    if(!blob)return;
+    var ext=track.storage_path.includes(".")?"."+track.storage_path.split(".").pop():"";
+    var blobUrl=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=blobUrl;
+    a.download=track.title+ext;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){URL.revokeObjectURL(blobUrl);},1000);
   }).catch(function(err){
     console.error("downloadSharedTrack error",err);
     alert("couldn't download this track");
