@@ -1311,7 +1311,7 @@ function renderHome(){
   var secTitle=document.createElement("div");secTitle.className="sec-title";secTitle.textContent="your stashes";
   var grid=document.createElement("div");grid.className="grid";
   S.stashes.forEach(function(f){
-    var card=document.createElement("div");card.className="scard";card.onclick=function(){openStash(f.id);};
+    var card=document.createElement("div");card.className="scard";card.onclick=function(){if(card.dataset.suppressClick)return;openStash(f.id);};
     card.style.width=(180*(f.size||1))+"px";
     var resizeHandle=document.createElement("div");resizeHandle.className="scard-resize-handle";
     resizeHandle.onmousedown=function(e){startStashResize(e,f,card);};
@@ -3500,10 +3500,13 @@ function startStashResize(e,f,card){
   var startWidth=card.offsetWidth;
   var minWidth=120;
   var maxWidth=420;
+  var didDrag=false;
   card.classList.add("resizing");
+  card.dataset.suppressClick="1";
 
   function onMove(ev){
     var delta=ev.clientX-startX;
+    if(Math.abs(delta)>2)didDrag=true;
     var newWidth=Math.max(minWidth,Math.min(maxWidth,startWidth+delta));
     card.style.width=newWidth+"px";
   }
@@ -3514,6 +3517,8 @@ function startStashResize(e,f,card){
     var finalWidth=card.offsetWidth;
     f.size=Math.round((finalWidth/180)*100)/100;
     saveStashes();
+    // keep suppressing the click event that fires right after mouseup
+    setTimeout(function(){delete card.dataset.suppressClick;},50);
   }
   document.addEventListener("mousemove",onMove);
   document.addEventListener("mouseup",onUp);
