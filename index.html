@@ -436,6 +436,13 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 </style>
 </head>
 <body>
+<div id="boot-loader" style="position:fixed;inset:0;background:#0a0a0a;z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;transition:opacity .4s ease-out">
+  <img src="logo.png" style="width:48px;height:48px;border-radius:12px;animation:bootPulse 1.4s ease-in-out infinite" alt="">
+  <div style="color:#fff;font-size:14px;font-weight:700;letter-spacing:.3px">stash'd</div>
+</div>
+<style>
+@keyframes bootPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.94)}}
+</style>
 <div class="bg-image-overlay" id="bg-overlay"></div>
 <div class="aura" id="aura"></div>
 <style>
@@ -3554,6 +3561,13 @@ function render(){
   else if(p==="profile")renderProfile();
 }
 
+setTimeout(function(){
+  var loader=document.getElementById("boot-loader");
+  if(loader){
+    loader.style.opacity="0";
+    setTimeout(function(){loader.remove();},400);
+  }
+},2000);
 initAuth();
 if(checkStoredKey())S.isPro=true;
 (function(){try{var bg=localStorage.getItem("stashd_bg");if(bg){var ov=document.getElementById("bg-overlay");if(ov)ov.style.backgroundImage="url("+bg+")";document.body.classList.add("has-bg-image");}}catch(e){}})();
