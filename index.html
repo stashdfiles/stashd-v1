@@ -730,6 +730,30 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 <div class="overlay" id="ov-del-t"><div class="confirm"><p id="del-t-msg"></p><div class="mbtns"><button class="mbtn c" onclick="hideOv('ov-del-t')">cancel</button><button class="mbtn d" id="del-t-ok">remove</button></div></div></div>
 <input type="file" id="gfile" accept="audio/*,image/gif" multiple style="display:none" onchange="handleAudio(event,null)">
 <input type="file" id="gfolder" webkitdirectory multiple accept="audio/*" style="display:none" onchange="handleFolder(event)">
+<div class="overlay" id="ov-invite">
+  <div class="share-box" style="width:380px;max-height:80vh;overflow-y:auto">
+    <h3 style="color:var(--t1);font-size:15px;font-weight:600;margin-bottom:3px">share stash</h3>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:14px" id="invite-stash-name"></div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:6px">invite someone</div>
+    <input class="share-import-input" type="text" id="invite-search-input" placeholder="search username..." oninput="searchInviteCandidates(this.value.trim())">
+    <div id="invite-results" style="margin-top:8px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><div style="flex:1;height:0.5px;background:var(--b2)"></div><span style="font-size:11px;color:var(--t3)">shared with</span><div style="flex:1;height:0.5px;background:var(--b2)"></div></div>
+    <div id="invite-manage-list"></div>
+    <div class="mbtns" style="margin-top:14px"><button class="mbtn c" onclick="hideOv('ov-invite')">close</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov-accept-invite">
+  <div class="share-box" style="width:340px">
+    <h3 style="color:var(--t1);font-size:15px;font-weight:600;margin-bottom:8px">stash invite</h3>
+    <div style="font-size:13px;color:var(--t2);margin-bottom:18px" id="accept-invite-text"></div>
+    <div style="display:flex;gap:8px">
+      <button class="mbtn d" style="flex:1" id="accept-invite-btn">accept</button>
+      <button class="mbtn c" style="flex:1" id="decline-invite-btn">decline</button>
+    </div>
+  </div>
+</div>
+
 <audio id="aud"></audio><script>
 var S = {
   page:"home", activeStash:null, cur:null, playing:false,
@@ -1358,7 +1382,9 @@ function renderHome(){
     nm.onkeydown=function(e){if(e.key==="Enter")this.blur();if(e.key==="Escape"){this.value=gS(f.id).name;this.blur();}};
     var ct=document.createElement("div");ct.className="scard-ct";ct.textContent=f.tracks.length+" track"+(f.tracks.length!==1?"s":"");
     meta.appendChild(nm);meta.appendChild(ct);
-    foot.appendChild(meta);
+    var shareBtn=document.createElement("button");shareBtn.className="scard-share-btn";shareBtn.title="share";
+    shareBtn.appendChild(sv(13,13,SHARE_SVG));(function(fid){shareBtn.onclick=function(e){openInvite(fid,e);};})(f.id);
+    foot.appendChild(meta);foot.appendChild(shareBtn);
     card.appendChild(delDot);card.appendChild(art);card.appendChild(foot);
     grid.appendChild(card);
   });
@@ -1368,7 +1394,98 @@ function renderHome(){
   addCard.appendChild(ps);addCard.appendChild(psp);
   grid.appendChild(addCard);
   wrap.appendChild(secTitle);wrap.appendChild(grid);
+
+  var sharedSection=document.createElement("div");sharedSection.id="shared-with-you-section";sharedSection.style.marginTop="28px";
+  wrap.appendChild(sharedSection);
+  renderSharedWithYouSection(sharedSection);
+
   c.appendChild(wrap);
+}
+
+function renderSharedWithYouSection(container){
+  if(!currentSession||!currentSession.user)return;
+  loadSharedStashes().then(function(invites){
+    if(!invites||!invites.length)return;
+    var title=document.createElement("div");title.className="sec-title";title.textContent="shared with you";
+    container.appendChild(title);
+    var sharedGrid=document.createElement("div");sharedGrid.className="grid";
+    container.appendChild(sharedGrid);
+    invites.forEach(function(invite){
+      fetchLiveSharedStash(invite).then(function(stash){
+        if(!stash)return;
+        var card=document.createElement("div");card.className="scard";card.style.cursor="pointer";
+        card.onclick=function(){openSharedStash(invite,stash);};
+        var art=document.createElement("div");art.className="scard-art";
+        if(stash.art){var aimg=document.createElement("img");aimg.src=stash.art;art.appendChild(aimg);}
+        else{var as=sv(28,28,MUSIC_SVG);as.style.color="var(--t3)";art.appendChild(as);}
+        var foot=document.createElement("div");foot.className="scard-foot";
+        var meta=document.createElement("div");meta.className="scard-meta";
+        var nm=document.createElement("div");nm.className="scard-nm";nm.textContent=stash.name;
+        var ct=document.createElement("div");ct.className="scard-ct";ct.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
+        meta.appendChild(nm);meta.appendChild(ct);
+        foot.appendChild(meta);
+        card.appendChild(art);card.appendChild(foot);
+        sharedGrid.appendChild(card);
+      });
+    });
+  });
+}
+
+function openSharedStash(invite,stash){
+  S.viewingSharedStash={invite:invite,stash:stash};
+  S.page="shared-stash-view";
+  document.querySelectorAll(".sbn").forEach(function(el){el.classList.remove("on");});
+  document.getElementById("tb-title").textContent=stash.name;
+  document.getElementById("tb-sub").textContent="listen only";
+  document.getElementById("add-btn").style.display="none";
+  render();
+}
+
+function renderSharedStashView(){
+  var c=document.getElementById("content");c.innerHTML="";
+  var wrap=document.createElement("div");wrap.className="fadein";
+  var data=S.viewingSharedStash;
+  if(!data){goPage("home");return;}
+  var stash=data.stash;
+
+  var back=document.createElement("div");back.className="back";
+  back.appendChild(sv(13,13,BACK_SVG));back.appendChild(document.createTextNode(" home"));
+  back.onclick=function(){goPage("home");};
+  wrap.appendChild(back);
+
+  stash.tracks.forEach(function(t,i){
+    var row=document.createElement("div");row.className="trow";
+    row.style.cursor="pointer";
+    row.onclick=function(){playSharedTrack(t);};
+    var titleEl=document.createElement("div");titleEl.style.cssText="flex:1;padding:10px 12px";
+    titleEl.innerHTML="<div style='color:var(--t1);font-size:13px;font-weight:500'>"+t.title+"</div><div style='color:var(--t3);font-size:11px'>"+(t.artist||"")+"</div>";
+    row.appendChild(titleEl);
+    wrap.appendChild(row);
+  });
+
+  c.appendChild(wrap);
+}
+
+function playSharedTrack(track){
+  if(!track.storage_path){alert("this track's audio isn't available");return;}
+  fetch(SB_URL+"/storage/v1/object/sign/audio-files/"+track.storage_path,{
+    method:"POST",
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token,"Content-Type":"application/json"},
+    body:JSON.stringify({expiresIn:3600})
+  }).then(function(r){return r.json();})
+  .then(function(data){
+    if(data&&data.signedURL){
+      document.getElementById("pl-title").textContent=track.title;
+      document.getElementById("pl-by").textContent=track.artist||"";
+      aud.src=SB_URL+"/storage/v1"+data.signedURL;
+      aud.play().catch(function(err){console.error("shared track playback failed",err);});
+    }else{
+      alert("couldn't load this track's audio");
+    }
+  }).catch(function(err){
+    console.error("playSharedTrack error",err);
+    alert("couldn't load this track's audio");
+  });
 }
 
 function renderSearch(){
@@ -2920,6 +3037,7 @@ function enterApp(){
       render();
       updateSidebarProfile();
       restoreCloudAudio();
+      checkPendingInvitesPrompt();
     });
   });
 }
@@ -3556,6 +3674,191 @@ function startStashResize(e,f,card){
 }
 
 
+/* ── STASH INVITES (accept/decline, removable, resettable) ── */
+var shareTargetFid=null;
+
+function openInvite(fid,e){
+  if(e)e.stopPropagation();
+  if(!currentSession||!currentSession.user){alert("log in to share stashes");return;}
+  var f=gS(fid);if(!f)return;
+  shareTargetFid=fid;
+  document.getElementById("invite-stash-name").textContent="\""+f.name+"\"";
+  document.getElementById("invite-search-input").value="";
+  document.getElementById("invite-results").innerHTML="";
+  renderInviteManageList(fid);
+  showOv("ov-invite");
+}
+
+function searchInviteCandidates(query){
+  var resultsWrap=document.getElementById("invite-results");
+  if(!query){resultsWrap.innerHTML="";return;}
+  resultsWrap.innerHTML="<div style='color:var(--t3);font-size:12px;padding:8px 0'>searching...</div>";
+  searchUsers(query).then(function(users){
+    var filtered=users.filter(function(u){return u.id!==currentSession.user.id;});
+    resultsWrap.innerHTML="";
+    if(!filtered.length){
+      resultsWrap.innerHTML="<div style='color:var(--t3);font-size:12px;padding:8px 0'>no users found</div>";
+      return;
+    }
+    filtered.forEach(function(u){
+      var row=document.createElement("div");row.className="user-card";row.style.padding="8px 10px";
+      var pic=document.createElement("div");pic.className="user-card-pic";pic.style.width="32px";pic.style.height="32px";
+      if(u.pic){var img=document.createElement("img");img.src=u.pic;pic.appendChild(img);}
+      else{pic.textContent=u.username[0].toUpperCase();}
+      var info=document.createElement("div");info.className="user-card-info";
+      var name=document.createElement("div");name.className="user-card-name";name.style.fontSize="12px";name.textContent="@"+u.username;
+      info.appendChild(name);
+      var btn=document.createElement("button");btn.className="follow-btn";btn.textContent="invite";
+      btn.onclick=function(){sendInvite(u);};
+      row.appendChild(pic);row.appendChild(info);row.appendChild(btn);
+      resultsWrap.appendChild(row);
+    });
+  });
+}
+
+function sendInvite(user){
+  var inviteId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+  sbAuthedFetch("stash_invites?on_conflict=owner_id,stash_id,invitee_id","POST",{
+    id:inviteId,
+    owner_id:currentSession.user.id,
+    stash_id:shareTargetFid,
+    invitee_id:user.id,
+    status:"pending"
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("sendInvite failed",r.status,text);
+        alert("couldn't send invite, please try again");
+        return;
+      }
+      document.getElementById("invite-search-input").value="";
+      document.getElementById("invite-results").innerHTML="";
+      renderInviteManageList(shareTargetFid);
+    });
+  }).catch(function(err){
+    console.error("sendInvite network error",err);
+    alert("couldn't send invite, please try again");
+  });
+}
+
+function renderInviteManageList(fid){
+  var listWrap=document.getElementById("invite-manage-list");
+  listWrap.innerHTML="<div style='color:var(--t3);font-size:12px;padding:8px 0'>loading...</div>";
+  sbAuthedFetch("stash_invites?owner_id=eq."+currentSession.user.id+"&stash_id=eq."+fid+"&select=*")
+    .then(function(r){return r.json();})
+    .then(function(invites){
+      if(!invites||!invites.length){
+        listWrap.innerHTML="<div style='color:var(--t3);font-size:12px;padding:8px 0'>not shared with anyone yet</div>";
+        return;
+      }
+      var ids=invites.map(function(i){return i.invitee_id;});
+      sbAuthedFetch("profiles?id=in.("+ids.join(",")+")&select=*").then(function(r){return r.json();}).then(function(profiles){
+        listWrap.innerHTML="";
+        invites.forEach(function(inv){
+          var u=profiles.find(function(p){return p.id===inv.invitee_id;});
+          if(!u)return;
+          var row=document.createElement("div");row.className="user-card";row.style.padding="8px 10px";
+          var pic=document.createElement("div");pic.className="user-card-pic";pic.style.width="28px";pic.style.height="28px";
+          if(u.pic){var img=document.createElement("img");img.src=u.pic;pic.appendChild(img);}
+          else{pic.textContent=u.username[0].toUpperCase();}
+          var info=document.createElement("div");info.className="user-card-info";
+          var name=document.createElement("div");name.className="user-card-name";name.style.fontSize="12px";name.textContent="@"+u.username;
+          var status=document.createElement("div");status.className="user-card-bio";status.textContent=inv.status;
+          info.appendChild(name);info.appendChild(status);
+          var resetBtn=document.createElement("button");resetBtn.className="follow-btn";resetBtn.style.fontSize="11px";resetBtn.textContent="reset";
+          resetBtn.onclick=function(){resetInvite(inv,u);};
+          var removeBtn=document.createElement("button");removeBtn.className="follow-btn following";removeBtn.style.fontSize="11px";removeBtn.style.marginLeft="6px";removeBtn.textContent="remove";
+          removeBtn.onclick=function(){removeInvite(inv.id,fid);};
+          row.appendChild(pic);row.appendChild(info);row.appendChild(resetBtn);row.appendChild(removeBtn);
+          listWrap.appendChild(row);
+        });
+      });
+    }).catch(function(err){
+      console.error("renderInviteManageList error",err);
+      listWrap.innerHTML="<div style='color:var(--t3);font-size:12px;padding:8px 0'>couldn't load</div>";
+    });
+}
+
+function resetInvite(invite,user){
+  fetch(SB_URL+"/rest/v1/stash_invites?id=eq."+invite.id,{
+    method:"DELETE",
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token}
+  }).then(function(){
+    sendInvite(user);
+  }).catch(function(err){console.error("resetInvite error",err);});
+}
+
+function removeInvite(inviteId,fid){
+  fetch(SB_URL+"/rest/v1/stash_invites?id=eq."+inviteId,{
+    method:"DELETE",
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token}
+  }).then(function(){
+    renderInviteManageList(fid);
+  }).catch(function(err){console.error("removeInvite error",err);});
+}
+
+/* ── PENDING INVITES (things shared with me, awaiting accept/decline) ── */
+function loadPendingInvites(){
+  if(!currentSession||!currentSession.user)return Promise.resolve([]);
+  return sbAuthedFetch("stash_invites?invitee_id=eq."+currentSession.user.id+"&status=eq.pending&select=*")
+    .then(function(r){return r.json();})
+    .catch(function(){return [];});
+}
+
+function checkPendingInvitesPrompt(){
+  loadPendingInvites().then(function(invites){
+    if(!invites||!invites.length)return;
+    var invite=invites[0];
+    sbAuthedFetch("profiles?id=eq."+invite.owner_id+"&select=username").then(function(r){return r.json();}).then(function(owners){
+      var ownerName=owners&&owners.length?owners[0].username:"someone";
+      sbAuthedFetch("user_data?id=eq."+invite.owner_id+"&select=stashes").then(function(r){return r.json();}).then(function(rows){
+        var stashName="a stash";
+        if(rows&&rows.length&&rows[0].stashes&&rows[0].stashes.stashes){
+          var stash=rows[0].stashes.stashes.find(function(f){return f.id===invite.stash_id;});
+          if(stash)stashName=stash.name;
+        }
+        document.getElementById("accept-invite-text").textContent="@"+ownerName+" wants to share \""+stashName+"\" with you. You\'ll be able to listen to it anytime, and they can remove access later.";
+        document.getElementById("accept-invite-btn").onclick=function(){hideOv("ov-accept-invite");acceptInvite(invite);};
+        document.getElementById("decline-invite-btn").onclick=function(){hideOv("ov-accept-invite");declineInvite(invite);};
+        showOv("ov-accept-invite");
+      });
+    });
+  });
+}
+
+function acceptInvite(invite){
+  sbAuthedFetch("stash_invites?id=eq."+invite.id,"PATCH",{status:"accepted"})
+    .then(function(){render();})
+    .catch(function(err){console.error("acceptInvite error",err);});
+}
+
+function declineInvite(invite){
+  fetch(SB_URL+"/rest/v1/stash_invites?id=eq."+invite.id,{
+    method:"DELETE",
+    headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token}
+  }).then(function(){render();})
+  .catch(function(err){console.error("declineInvite error",err);});
+}
+
+/* ── SHARED-WITH-ME LIBRARY ── */
+function loadSharedStashes(){
+  if(!currentSession||!currentSession.user)return Promise.resolve([]);
+  return sbAuthedFetch("stash_invites?invitee_id=eq."+currentSession.user.id+"&status=eq.accepted&select=*")
+    .then(function(r){return r.json();})
+    .catch(function(){return [];});
+}
+
+function fetchLiveSharedStash(invite){
+  return sbAuthedFetch("user_data?id=eq."+invite.owner_id+"&select=stashes")
+    .then(function(r){return r.json();})
+    .then(function(rows){
+      if(!rows||!rows.length||!rows[0].stashes||!rows[0].stashes.stashes)return null;
+      var stash=rows[0].stashes.stashes.find(function(f){return f.id===invite.stash_id;});
+      return stash||null;
+    }).catch(function(){return null;});
+}
+
+
 function render(){
   renderSidebar();
   var p=S.page;
@@ -3568,6 +3871,7 @@ function render(){
   else if(p==="people")renderPeople();
   else if(p==="public-profile")renderPublicProfile();
   else if(p==="follow-list")renderFollowList();
+  else if(p==="shared-stash-view")renderSharedStashView();
   else if(p==="premium")renderPremium();
   else if(p==="profile")renderProfile();
 }
