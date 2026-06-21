@@ -1469,15 +1469,27 @@ function renderSharedStashView(){
   header.appendChild(headerArt);header.appendChild(headerInfo);
   wrap.appendChild(header);
 
+  var listWrap=document.createElement("div");listWrap.className="tracklist";
+
   stash.tracks.forEach(function(t,i){
     var row=document.createElement("div");row.className="trow";
     row.style.cursor="pointer";
-    row.onclick=function(){playSharedTrack(t);};
-    var titleEl=document.createElement("div");titleEl.style.cssText="flex:1;padding:10px 12px";
-    titleEl.innerHTML="<div style='color:var(--t1);font-size:13px;font-weight:500'>"+t.title+"</div><div style='color:var(--t3);font-size:11px'>"+(t.artist||"")+"</div>";
-    row.appendChild(titleEl);
-    wrap.appendChild(row);
+    row.onclick=function(e){if(e.target.closest(".trow-acts"))return;playSharedTrack(t,i);};
+
+    var n=document.createElement("div");n.className="trow-n";n.textContent=i+1;
+    var artEl=mkArt(stash.art);
+
+    var info=document.createElement("div");info.className="trow-info";
+    var titleEl=document.createElement("div");titleEl.className="trow-title-input";titleEl.style.cssText="background:none;border:none;color:var(--t1);font-size:13px;font-weight:500;pointer-events:none";titleEl.textContent=t.title;
+    var by=document.createElement("div");by.className="trow-by";by.textContent=t.artist||"imported";
+    info.appendChild(titleEl);info.appendChild(by);
+
+    var dur=document.createElement("div");dur.className="trow-dur";dur.textContent=t.dur||"—";
+
+    row.appendChild(n);row.appendChild(artEl);row.appendChild(info);row.appendChild(dur);
+    listWrap.appendChild(row);
   });
+  wrap.appendChild(listWrap);
 
   c.appendChild(wrap);
 }
