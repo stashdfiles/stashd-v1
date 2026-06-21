@@ -31,9 +31,12 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 .sb-logo-img{width:24px;height:24px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--c2);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t2)}
 .sb-logo-img img{width:100%;height:100%;object-fit:cover;display:block}
 .appname{font-size:14px;font-weight:600;letter-spacing:-.3px}
-.sbn{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--t2);cursor:pointer;transition:all .15s;user-select:none;margin:0 8px 1px}
+.sbn{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--t2);cursor:pointer;transition:background .12s ease-out,color .12s ease-out,box-shadow .12s ease-out;user-select:none;margin:0 8px 1px}
 .sbn:hover,.sbn.on{background:var(--ag);color:var(--t1)}
 .sbn{position:relative}
+.sbn{box-shadow:0 0 0 rgba(0,0,0,0)}
+.sbn svg{transition:filter .12s ease-out}
+.sbn span{transition:text-shadow .12s ease-out}
 .sbn:hover{box-shadow:0 0 16px color-mix(in srgb,currentColor 35%,transparent),inset 0 0 0 0.5px color-mix(in srgb,currentColor 40%,transparent)}
 .sbn:hover svg{filter:drop-shadow(0 0 6px currentColor)}
 .sbn:hover span{text-shadow:0 0 8px currentColor}
@@ -1847,8 +1850,7 @@ function renderPremium(){
     {icon:"🖼",name:"custom background",desc:"set a personal wallpaper behind the ui."},
     {icon:"✨",name:"profile effects",desc:"animated effects on your profile card."},
     {icon:"🏷",name:"name tag",desc:"custom colored tag shown beside your name."},
-    {icon:"✂",name:"audio trimmer",desc:"trim the start and end of any track."},
-    {icon:"∞",name:"unlimited tracks",desc:"no cap on tracks per stash."}
+    {icon:"✂",name:"audio trimmer",desc:"trim the start and end of any track."}
   ];
 
   var grid=document.createElement("div");grid.style.cssText="display:grid;grid-template-columns:1fr 1fr;gap:8px";
