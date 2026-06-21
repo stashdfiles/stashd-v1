@@ -3824,7 +3824,7 @@ function renderInviteManageList(fid){
         invites.forEach(function(inv){
           var u=profiles.find(function(p){return p.id===inv.invitee_id;});
           if(!u)return;
-          var row=document.createElement("div");row.className="user-card";row.style.padding="8px 10px";
+          var row=document.createElement("div");row.className="user-card";row.style.cssText="padding:8px 10px;flex-wrap:wrap;gap:8px";
           var pic=document.createElement("div");pic.className="user-card-pic";pic.style.width="28px";pic.style.height="28px";
           if(u.pic){var img=document.createElement("img");img.src=u.pic;pic.appendChild(img);}
           else{pic.textContent=u.username[0].toUpperCase();}
@@ -3840,7 +3840,9 @@ function renderInviteManageList(fid){
           resetBtn.onclick=function(){resetInvite(inv,u);};
           var removeBtn=document.createElement("button");removeBtn.className="follow-btn following";removeBtn.style.fontSize="11px";removeBtn.style.marginLeft="6px";removeBtn.textContent="remove";
           removeBtn.onclick=function(){removeInvite(inv.id,fid);};
-          row.appendChild(pic);row.appendChild(info);row.appendChild(permSelect);row.appendChild(resetBtn);row.appendChild(removeBtn);
+          var actionsWrap=document.createElement("div");actionsWrap.style.cssText="display:flex;align-items:center;gap:6px;flex-shrink:0;width:100%;justify-content:flex-end";
+          actionsWrap.appendChild(permSelect);actionsWrap.appendChild(resetBtn);actionsWrap.appendChild(removeBtn);
+          row.appendChild(pic);row.appendChild(info);row.appendChild(actionsWrap);
           listWrap.appendChild(row);
         });
       });
