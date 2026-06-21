@@ -106,8 +106,8 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 .trow-info{flex:1;min-width:0}
 .trow-title{font-size:13px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .12s}
 .trow:hover .trow-title,.trow.playing .trow-title{color:var(--t1)}
-.trow-by{font-size:11px;color:var(--t3);margin-top:1px}
-.trow-dur{font-size:11px;color:var(--t3);flex-shrink:0}
+.trow-by{font-size:11px;color:var(--t2);margin-top:1px}
+.trow-dur{font-size:11px;color:var(--t2);flex-shrink:0}
 .trow-acts{display:flex;align-items:center;gap:2px;opacity:1}
 
 .tact{background:none;border:none;cursor:pointer;padding:4px;border-radius:5px;display:flex;align-items:center;transition:transform .1s;color:var(--t3)}
@@ -1464,7 +1464,7 @@ function renderSharedStashView(){
   else{var hIcon=sv(28,28,MUSIC_SVG);hIcon.style.color="var(--t3)";headerArt.appendChild(hIcon);}
   var headerInfo=document.createElement("div");
   var headerTitle=document.createElement("div");headerTitle.style.cssText="font-size:20px;font-weight:700;color:var(--t1)";headerTitle.textContent=stash.name;
-  var headerSub=document.createElement("div");headerSub.style.cssText="font-size:12px;color:var(--t3);margin-top:3px";headerSub.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
+  var headerSub=document.createElement("div");headerSub.style.cssText="font-size:12px;color:var(--t2);margin-top:3px";headerSub.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
   headerInfo.appendChild(headerTitle);headerInfo.appendChild(headerSub);
   header.appendChild(headerArt);header.appendChild(headerInfo);
   wrap.appendChild(header);
