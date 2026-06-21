@@ -3365,7 +3365,8 @@ function renderPublicProfile(){
           nameRow.appendChild(tag);
         }
         if(u.is_pro){
-          var proBadge=document.createElement("div");proBadge.className="pro-badge";proBadge.innerHTML="&#10022; premium";
+          var proBadge=document.createElement("span");proBadge.innerHTML="&#10022; premium";
+          proBadge.style.cssText="background:linear-gradient(135deg,#1a1208,#241a06);border:0.5px solid rgba(201,168,76,.4);color:#c9a84c;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;flex-shrink:0";
           nameRow.appendChild(proBadge);
         }
         var bio=document.createElement("div");bio.style.cssText="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:12px";bio.textContent=u.bio||"";
