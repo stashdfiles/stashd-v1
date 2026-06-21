@@ -1792,6 +1792,13 @@ function renderPremium(){
   var alreadyPro=S.isPro||checkStoredKey();
   if(alreadyPro&&!S.isPro)S.isPro=true;
 
+  // ── SOCIAL PROOF ──
+  var PREMIUM_MEMBER_COUNT=10;
+  var socialProof=document.createElement("div");
+  socialProof.style.cssText="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:18px;color:var(--t2);font-size:12px";
+  socialProof.innerHTML="<svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='var(--gold)' stroke-width='2' stroke-linecap='round'><path d='M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 00-3-3.87'/><path d='M16 3.13a4 4 0 010 7.75'/></svg> <span style='color:var(--gold);font-weight:700'>"+PREMIUM_MEMBER_COUNT+"</span> people are already premium";
+  wrap.appendChild(socialProof);
+
   // ── ACTIVE BANNER ──
   if(S.isPro){
     var banner=document.createElement("div");
