@@ -100,6 +100,8 @@ html,body{height:100%;font-family:'Inter',-apple-system,sans-serif;background:va
 .trow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:background .12s;user-select:none}
 .trow:hover{background:var(--c1)}
 .trow.playing{background:var(--c2)}
+.trow.selected{background:rgba(120,160,255,.14);box-shadow:inset 2px 0 0 0 rgba(120,160,255,.7)}
+.trow.selected:hover{background:rgba(120,160,255,.2)}
 .trow-n{width:16px;font-size:11px;color:var(--t3);text-align:center;flex-shrink:0}
 .trow-art{width:34px;height:34px;border-radius:7px;background:var(--c2);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .trow-art img{width:100%;height:100%;object-fit:cover}
@@ -1232,19 +1234,20 @@ function mkArt(fa){
   else{var s=sv(13,13,MUSIC_SVG);s.style.color="var(--t3)";d.appendChild(s);}
   return d;
 }
-function mkTrow(t,idx){
+function mkTrow(t,idx,trackList){
   var isP=S.cur&&S.cur.tid===t.id;
   // outer wrapper for row + note
   var outer=document.createElement("div");
 
-  var row=document.createElement("div");row.className="trow"+(isP?" playing":"");
+  var row=document.createElement("div");row.className="trow"+(isP?" playing":"")+(isTrackSelected(t.id)?" selected":"");
   row.id="trow-"+t.id;
   row.draggable=true;
   row.ondragstart=function(e){onDragStart(e,t.fid,t.id);};
   row.oncontextmenu=function(e){showCtxMenu(e,t.fid,t.id);};
   row.ondragover=function(e){onDragOver(e,t.id);};
   row.ondrop=function(e){onDrop(e,t.fid,t.id);};
-  row.onclick=function(e){if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;playTrack(t.fid,t.id);};
+  row.onmousedown=function(e){if(e.shiftKey)startShiftDragSelect(e,t,row);};
+  row.onclick=function(e){handleTrackRowClick(e,t,trackList||[]);};
 
   // drag handle
   var drag=document.createElement("div");drag.className="trow-drag";
@@ -1298,7 +1301,7 @@ function mkTrow(t,idx){
 function mkTracklist(tracks){
   var div=document.createElement("div");div.className="tracklist";
   if(!tracks.length){var empty=document.createElement("div");empty.style.cssText="color:var(--t3);text-align:center;padding:32px 0;font-size:13px";empty.textContent="empty \u2014 add tracks above";div.appendChild(empty);}
-  else tracks.forEach(function(t,i){div.appendChild(mkTrow(t,i));});
+  else tracks.forEach(function(t,i){div.appendChild(mkTrow(t,i,tracks));});
   return div;
 }
 
@@ -4016,6 +4019,84 @@ function fetchLiveSharedStash(invite){
     }).catch(function(){return null;});
 }
 
+
+
+/* ── TRACK MULTI-SELECT (shift+click range, shift+drag paint) ── */
+var selectedTracks={};
+var lastClickedTrackId=null;
+var shiftDragActive=false;
+var shiftDragMode="add";
+
+function isTrackSelected(tid){return !!selectedTracks[tid];}
+
+function clearSelection(){
+  selectedTracks={};
+  lastClickedTrackId=null;
+  document.querySelectorAll(".trow.selected").forEach(function(r){r.classList.remove("selected");});
+}
+
+function toggleTrackSelection(tid,row){
+  if(selectedTracks[tid]){delete selectedTracks[tid];row.classList.remove("selected");}
+  else{selectedTracks[tid]=true;row.classList.add("selected");}
+}
+
+function selectTrackRange(fromId,toId,trackList){
+  var ids=trackList.map(function(t){return t.id;});
+  var fromIdx=ids.indexOf(fromId);
+  var toIdx=ids.indexOf(toId);
+  if(fromIdx===-1||toIdx===-1)return;
+  var start=Math.min(fromIdx,toIdx);
+  var end=Math.max(fromIdx,toIdx);
+  for(var i=start;i<=end;i++){
+    selectedTracks[ids[i]]=true;
+    var r=document.getElementById("trow-"+ids[i]);
+    if(r)r.classList.add("selected");
+  }
+}
+
+function handleTrackRowClick(e,t,trackList){
+  if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;
+  var row=document.getElementById("trow-"+t.id);
+  if(e.shiftKey&&lastClickedTrackId!==null){
+    selectTrackRange(lastClickedTrackId,t.id,trackList);
+    return;
+  }
+  if(!e.shiftKey)clearSelection();
+  lastClickedTrackId=t.id;
+  playTrack(t.fid,t.id);
+}
+
+function startShiftDragSelect(e,t,row){
+  if(!e.shiftKey)return;
+  e.preventDefault();
+  shiftDragActive=true;
+  shiftDragMode=selectedTracks[t.id]?"remove":"add";
+  applyShiftDragToRow(t.id,row);
+  lastClickedTrackId=t.id;
+
+  function onEnter(ev){
+    if(!shiftDragActive)return;
+    var rowEl=ev.currentTarget;
+    var tid=parseInt(rowEl.id.replace("trow-",""));
+    applyShiftDragToRow(tid,rowEl);
+  }
+  function onUp(){
+    shiftDragActive=false;
+    document.removeEventListener("mouseup",onUp);
+  }
+  document.addEventListener("mouseup",onUp);
+  // attach mouseenter to all rows for the duration of this drag
+  document.querySelectorAll(".trow").forEach(function(r){
+    r.addEventListener("mouseenter",onEnter);
+    var cleanup=function(){r.removeEventListener("mouseenter",onEnter);document.removeEventListener("mouseup",cleanup);};
+    document.addEventListener("mouseup",cleanup);
+  });
+}
+
+function applyShiftDragToRow(tid,row){
+  if(shiftDragMode==="add"){selectedTracks[tid]=true;row.classList.add("selected");}
+  else{delete selectedTracks[tid];row.classList.remove("selected");}
+}
 
 
 function render(){
