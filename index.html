@@ -1444,12 +1444,20 @@ function renderSharedWithYouSection(container){
     var ownerCache={};
     function getOwnerStashes(ownerId){
       if(ownerCache[ownerId])return ownerCache[ownerId];
+      var t0=performance.now();
       ownerCache[ownerId]=sbAuthedFetch("user_data?id=eq."+ownerId+"&select=stashes")
-        .then(function(r){return r.json();})
+        .then(function(r){
+          console.error("getOwnerStashes: fetch returned after",Math.round(performance.now()-t0),"ms, status=",r.status);
+          return r.json();
+        })
         .then(function(rows){
+          console.error("getOwnerStashes: json parsed after",Math.round(performance.now()-t0),"ms total");
           if(!rows||!rows.length||!rows[0].stashes||!rows[0].stashes.stashes)return [];
           return rows[0].stashes.stashes;
-        }).catch(function(){return [];});
+        }).catch(function(err){
+          console.error("getOwnerStashes error after",Math.round(performance.now()-t0),"ms:",err);
+          return [];
+        });
       return ownerCache[ownerId];
     }
 
