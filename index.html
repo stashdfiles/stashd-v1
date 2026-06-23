@@ -488,7 +488,7 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 </style>
 <div class="reload-banner" id="reload-banner">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-  <span>audio files need to be reloaded — they don't persist between sessions</span>
+  <span>couldn't load this track's audio — try again, or reload the file manually</span>
   <button class="reload-btn" onclick="triggerReload()">reload files</button>
   <button class="reload-dismiss" onclick="hideReloadBanner()">dismiss</button>
 </div>
@@ -739,6 +739,16 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
     <div style="font-size:11px;color:var(--t2);margin-bottom:6px">invite someone</div>
     <input class="share-import-input" type="text" id="invite-search-input" placeholder="search username..." oninput="searchInviteCandidates(this.value.trim())">
     <div id="invite-results" style="margin-top:8px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><div style="flex:1;height:0.5px;background:var(--b2)"></div><span style="font-size:11px;color:var(--t3)">or share a link</span><div style="flex:1;height:0.5px;background:var(--b2)"></div></div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <select id="link-perm-select" style="background:var(--c2);border:0.5px solid var(--b2);color:var(--t2);font-size:12px;border-radius:8px;padding:8px;font-family:inherit;flex-shrink:0">
+        <option value="listen">listen only</option>
+        <option value="download">listen + download</option>
+      </select>
+      <button class="mbtn d" style="flex:1;padding:8px" onclick="generateShareLink()">create link</button>
+    </div>
+    <div id="share-link-display" style="font-size:11px;color:var(--t2);word-break:break-all;background:var(--c2);border:0.5px solid var(--b2);border-radius:8px;padding:8px 10px;display:none;margin-bottom:8px"></div>
+    <button id="share-link-copy-btn" class="follow-btn" style="display:none;width:100%;margin-bottom:8px" onclick="copyShareLink()">copy link</button>
     <div style="display:flex;align-items:center;gap:10px;margin:16px 0"><div style="flex:1;height:0.5px;background:var(--b2)"></div><span style="font-size:11px;color:var(--t3)">shared with</span><div style="flex:1;height:0.5px;background:var(--b2)"></div></div>
     <div id="invite-manage-list"></div>
     <div class="mbtns" style="margin-top:14px"><button class="mbtn c" onclick="hideOv('ov-invite')">close</button></div>
@@ -969,12 +979,22 @@ function playTrack(fid,tid){
       if(myToken!==playRequestToken)return; // a newer track was clicked while this was loading
       if(url){
         t.src=url;doPlay(url);
-      }else if(t.filename&&fileCache[t.filename]){
-        var freshUrl=URL.createObjectURL(fileCache[t.filename]);
-        t.src=freshUrl;doPlay(freshUrl);
-      }else{
-        showReloadPrompt(t.fid);
+        return;
       }
+      // first attempt failed - retry once before giving up, since this is usually a transient network/token issue, not a missing file
+      console.error("first signed url attempt failed for",t.title,"- retrying once");
+      getTrackPlaybackUrl(t).then(function(retryUrl){
+        if(myToken!==playRequestToken)return;
+        if(retryUrl){
+          t.src=retryUrl;doPlay(retryUrl);
+        }else if(t.filename&&fileCache[t.filename]){
+          var freshUrl=URL.createObjectURL(fileCache[t.filename]);
+          t.src=freshUrl;doPlay(freshUrl);
+        }else{
+          console.error("retry also failed for",t.title,"- showing reload prompt");
+          showReloadPrompt(t.fid);
+        }
+      });
     });
   } else if(t.filename&&fileCache[t.filename]){
     // file is in memory cache - create fresh blob url
@@ -3130,6 +3150,7 @@ function enterApp(){
       updateSidebarProfile();
       restoreCloudAudio();
       checkPendingInvitesPrompt();
+      checkPendingStashLink();
     });
   });
 }
@@ -3805,6 +3826,115 @@ function openInvite(fid,e){
   document.getElementById("invite-results").innerHTML="";
   renderInviteManageList(fid);
   showOv("ov-invite");
+}
+
+
+/* ── SHAREABLE LINKS (link-based invite, same accept/decline flow) ── */
+function generateShareLink(){
+  var permission=document.getElementById("link-perm-select").value;
+  var linkId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+  sbAuthedFetch("stash_share_links","POST",{
+    id:linkId,
+    owner_id:currentSession.user.id,
+    stash_id:shareTargetFid,
+    permission:permission
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("generateShareLink failed",r.status,text);
+        alert("couldn't create link, please try again");
+        return;
+      }
+      var link=window.location.origin+window.location.pathname+"?stashlink="+linkId;
+      var display=document.getElementById("share-link-display");
+      display.textContent=link;
+      display.style.display="block";
+      document.getElementById("share-link-copy-btn").style.display="block";
+    });
+  }).catch(function(err){
+    console.error("generateShareLink network error",err);
+    alert("couldn't create link, please try again");
+  });
+}
+
+function copyShareLink(){
+  var link=document.getElementById("share-link-display").textContent;
+  if(!link)return;
+  navigator.clipboard.writeText(link).then(function(){
+    var b=document.getElementById("share-link-copy-btn");
+    b.textContent="copied!";
+    setTimeout(function(){b.textContent="copy link";},1500);
+  }).catch(function(){});
+}
+
+var pendingStashLinkId=null;
+(function(){
+  try{
+    var params=new URLSearchParams(window.location.search);
+    var linkId=params.get("stashlink");
+    if(linkId){
+      pendingStashLinkId=linkId;
+      window.history.replaceState({},document.title,window.location.pathname);
+    }
+  }catch(e){}
+})();
+
+function checkPendingStashLink(){
+  if(!pendingStashLinkId)return;
+  var linkId=pendingStashLinkId;
+  pendingStashLinkId=null;
+  sbAuthedFetch("stash_share_links?id=eq."+encodeURIComponent(linkId)+"&select=*")
+    .then(function(r){return r.json();})
+    .then(function(links){
+      if(!links||!links.length){alert("this share link is invalid or has been removed");return;}
+      var link=links[0];
+      if(link.owner_id===currentSession.user.id){alert("this is your own share link");return;}
+      sbAuthedFetch("profiles?id=eq."+link.owner_id+"&select=username").then(function(r){return r.json();}).then(function(owners){
+        var ownerName=owners&&owners.length?owners[0].username:"someone";
+        sbAuthedFetch("user_data?id=eq."+link.owner_id+"&select=stashes").then(function(r){return r.json();}).then(function(rows){
+          var stashName="a stash";
+          if(rows&&rows.length&&rows[0].stashes&&rows[0].stashes.stashes){
+            var stash=rows[0].stashes.stashes.find(function(f){return f.id===link.stash_id;});
+            if(stash)stashName=stash.name;
+          }
+          document.getElementById("accept-invite-text").textContent="@"+ownerName+" shared \"" + stashName + "\" with you via link ("+(link.permission==="download"?"listen + download":"listen only")+"). Accept to add it to your library.";
+          document.getElementById("accept-invite-btn").onclick=function(){
+            hideOv("ov-accept-invite");
+            acceptStashLink(link);
+          };
+          document.getElementById("decline-invite-btn").onclick=function(){hideOv("ov-accept-invite");};
+          showOv("ov-accept-invite");
+        });
+      });
+    }).catch(function(err){
+      console.error("checkPendingStashLink error",err);
+      alert("couldn't open this share link");
+    });
+}
+
+function acceptStashLink(link){
+  var inviteId=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
+  sbAuthedFetch("stash_invites?on_conflict=owner_id,stash_id,invitee_id","POST",{
+    id:inviteId,
+    owner_id:link.owner_id,
+    stash_id:link.stash_id,
+    invitee_id:currentSession.user.id,
+    status:"accepted",
+    permission:link.permission
+  }).then(function(r){
+    return r.text().then(function(text){
+      if(!r.ok){
+        console.error("acceptStashLink failed",r.status,text);
+        alert("couldn't accept this share - please try again");
+        return;
+      }
+      render();
+      showToast("stash added to your library!");
+    });
+  }).catch(function(err){
+    console.error("acceptStashLink network error",err);
+    alert("couldn't accept this share - please try again");
+  });
 }
 
 function searchInviteCandidates(query){
