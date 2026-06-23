@@ -4057,11 +4057,17 @@ function selectTrackRange(fromId,toId,trackList){
 function handleTrackRowClick(e,t,trackList){
   if(e.target.closest(".trow-acts,.trow-del,.note-btn,.trow-drag,input"))return;
   var row=document.getElementById("trow-"+t.id);
-  if(e.shiftKey&&lastClickedTrackId!==null){
-    selectTrackRange(lastClickedTrackId,t.id,trackList);
+  if(e.shiftKey){
+    if(lastClickedTrackId!==null){
+      selectTrackRange(lastClickedTrackId,t.id,trackList);
+    }else{
+      selectedTracks[t.id]=true;
+      if(row)row.classList.add("selected");
+      lastClickedTrackId=t.id;
+    }
     return;
   }
-  if(!e.shiftKey)clearSelection();
+  clearSelection();
   lastClickedTrackId=t.id;
   playTrack(t.fid,t.id);
 }
