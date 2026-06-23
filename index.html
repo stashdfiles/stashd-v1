@@ -1476,7 +1476,7 @@ function renderSharedWithYouSection(container){
         var foot=document.createElement("div");foot.className="scard-foot";
         var meta=document.createElement("div");meta.className="scard-meta";
         var nm=document.createElement("div");nm.className="scard-nm";nm.textContent=stash.name;
-        var ct=document.createElement("div");ct.className="scard-ct";ct.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · listen only";
+        var ct=document.createElement("div");ct.className="scard-ct";ct.textContent=stash.tracks.length+" track"+(stash.tracks.length!==1?"s":"")+" · checked "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
         meta.appendChild(nm);meta.appendChild(ct);
         foot.appendChild(meta);
         card.appendChild(art);card.appendChild(foot);
