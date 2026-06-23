@@ -1419,6 +1419,10 @@ function renderSharedWithYouSection(container){
         var resizeHandle=document.createElement("div");resizeHandle.className="scard-resize-handle";
         resizeHandle.onmousedown=function(e){startStashResize(e,null,card);};
         card.appendChild(resizeHandle);
+        var delDot=document.createElement("div");delDot.className="del-dot";
+        var ds=sv(9,9,DEL_SVG);ds.setAttribute("stroke","#555");ds.setAttribute("stroke-width","2.5");
+        delDot.appendChild(ds);delDot.onclick=function(e){e.stopPropagation();askLeaveSharedStash(invite,stash);};
+        card.appendChild(delDot);
         var art=document.createElement("div");art.className="scard-art";
         if(stash.art){var aimg=document.createElement("img");aimg.src=stash.art;art.appendChild(aimg);}
         else{var as=sv(28,28,MUSIC_SVG);as.style.color="var(--t3)";art.appendChild(as);}
@@ -2838,6 +2842,8 @@ function stopMiniTick(){if(miniTick){clearInterval(miniTick);miniTick=null;}}
 
 /* ── RELOAD PROMPT ── */
 function showReloadPrompt(fid){
+  var t=S.cur?gT(S.cur.fid,S.cur.tid):null;
+  if(t)console.error("can't play '"+t.title+"' - storage_path="+t.storage_path+" filename="+t.filename+" src="+(t.src?t.src.slice(0,40):"none"));
   var banner=document.getElementById("reload-banner");
   if(banner){banner.style.display="flex";banner.setAttribute("data-fid",fid||"");}
 }
@@ -3449,10 +3455,19 @@ function pullCloudData(){
     }
     var row=data[0];
     if(row.stashes&&row.stashes.stashes){
-      S.stashes=row.stashes.stashes;
-      S.nid=row.stashes.nid||1;
-      S.nsid=row.stashes.nsid||1;
-      saveStashesLocal();
+      var localTrackCount=S.stashes.reduce(function(n,f){return n+f.tracks.length;},0);
+      var cloudTrackCount=row.stashes.stashes.reduce(function(n,f){return n+f.tracks.length;},0);
+      var localStorageCount=S.stashes.reduce(function(n,f){return n+f.tracks.filter(function(t){return t.storage_path;}).length;},0);
+      var cloudStorageCount=row.stashes.stashes.reduce(function(n,f){return n+f.tracks.filter(function(t){return t.storage_path;}).length;},0);
+      if(cloudTrackCount<localTrackCount||cloudStorageCount<localStorageCount){
+        console.error("pullCloudData: cloud copy looks incomplete (local:"+localTrackCount+"/"+localStorageCount+" cloud:"+cloudTrackCount+"/"+cloudStorageCount+") - keeping local data and re-pushing it");
+        pushCloudSync();
+      }else{
+        S.stashes=row.stashes.stashes;
+        S.nid=row.stashes.nid||1;
+        S.nsid=row.stashes.nsid||1;
+        saveStashesLocal();
+      }
     }
     if(row.meta){
       if(row.meta.liked)S.liked=row.meta.liked;
@@ -3915,6 +3930,20 @@ function updateInvitePermission(inviteId,permission,btn){
       if(btn){btn.disabled=false;btn.textContent="save";}
       alert("couldn't save - please try again");
     });
+}
+
+function askLeaveSharedStash(invite,stash){
+  document.getElementById("del-s-msg").textContent='remove "'+stash.name+'" from your shared stashes? you can ask the owner to share it again later.';
+  document.getElementById("del-s-ok").onclick=function(){
+    fetch(SB_URL+"/rest/v1/stash_invites?id=eq."+invite.id,{
+      method:"DELETE",
+      headers:{"apikey":SB_KEY,"Authorization":"Bearer "+currentSession.access_token}
+    }).then(function(){
+      hideOv("ov-del-s");
+      render();
+    }).catch(function(err){console.error("askLeaveSharedStash error",err);hideOv("ov-del-s");});
+  };
+  showOv("ov-del-s");
 }
 
 function removeInvite(inviteId,fid){
