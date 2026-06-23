@@ -1430,14 +1430,32 @@ function renderHome(){
 
 function renderSharedWithYouSection(container){
   if(!currentSession||!currentSession.user)return;
+  var loadingMsg=document.createElement("div");loadingMsg.style.cssText="color:var(--t3);font-size:12px;padding:4px 0";loadingMsg.textContent="checking for shared stashes...";
+  container.appendChild(loadingMsg);
   loadSharedStashes().then(function(invites){
+    loadingMsg.remove();
     if(!invites||!invites.length)return;
     var title=document.createElement("div");title.className="sec-title";title.textContent="shared with you";
     container.appendChild(title);
     var sharedGrid=document.createElement("div");sharedGrid.className="grid";
     container.appendChild(sharedGrid);
+
+    // fetch each unique owner's data only once, even if shared with multiple stashes from them
+    var ownerCache={};
+    function getOwnerStashes(ownerId){
+      if(ownerCache[ownerId])return ownerCache[ownerId];
+      ownerCache[ownerId]=sbAuthedFetch("user_data?id=eq."+ownerId+"&select=stashes")
+        .then(function(r){return r.json();})
+        .then(function(rows){
+          if(!rows||!rows.length||!rows[0].stashes||!rows[0].stashes.stashes)return [];
+          return rows[0].stashes.stashes;
+        }).catch(function(){return [];});
+      return ownerCache[ownerId];
+    }
+
     invites.forEach(function(invite){
-      fetchLiveSharedStash(invite).then(function(stash){
+      getOwnerStashes(invite.owner_id).then(function(stashes){
+        var stash=stashes.find(function(f){return f.id===invite.stash_id;});
         if(!stash)return;
         var card=document.createElement("div");card.className="scard";card.style.cursor="pointer";
         card.onclick=function(){if(card.dataset.suppressClick)return;openSharedStash(invite,stash);};
