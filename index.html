@@ -1444,27 +1444,13 @@ function renderSharedWithYouSection(container){
     var ownerCache={};
     function getOwnerStashes(ownerId){
       if(ownerCache[ownerId])return ownerCache[ownerId];
-      var t0=performance.now();
-      var loadingMsg2=document.getElementById("shared-timing-debug");
-      if(!loadingMsg2){
-        loadingMsg2=document.createElement("div");loadingMsg2.id="shared-timing-debug";
-        loadingMsg2.style.cssText="font-size:11px;color:#888;padding:4px 0;white-space:pre-wrap";
-        container.appendChild(loadingMsg2);
-      }
       ownerCache[ownerId]=sbAuthedFetch("user_data?id=eq."+ownerId+"&select=stashes")
-        .then(function(r){
-          var t1=Math.round(performance.now()-t0);
-          loadingMsg2.textContent+="fetch returned after "+t1+"ms, status="+r.status+"\n";
-          return r.json();
-        })
+        .then(function(r){return r.json();})
         .then(function(rows){
-          var t2=Math.round(performance.now()-t0);
-          loadingMsg2.textContent+="json parsed after "+t2+"ms total\n";
           if(!rows||!rows.length||!rows[0].stashes||!rows[0].stashes.stashes)return [];
           return rows[0].stashes.stashes;
         }).catch(function(err){
-          var t3=Math.round(performance.now()-t0);
-          loadingMsg2.textContent+="error after "+t3+"ms: "+(err&&err.message?err.message:err)+"\n";
+          console.error("getOwnerStashes error",err);
           return [];
         });
       return ownerCache[ownerId];
@@ -3155,19 +3141,8 @@ function logOut(){
   var as=document.getElementById("auth-screen");if(as)as.style.display="flex";
 }
 
-function showStartupTiming(msg){
-  var box=document.getElementById("startup-timing-box");
-  if(!box){
-    box=document.createElement("div");box.id="startup-timing-box";
-    box.style.cssText="position:fixed;top:10px;right:10px;background:#1a1a1a;color:#9c9;font-size:11px;padding:10px 14px;border-radius:8px;z-index:99999;white-space:pre-wrap;font-family:monospace;border:0.5px solid #333";
-    document.body.appendChild(box);
-  }
-  box.textContent+=msg+"\n";
-}
 function enterApp(){
-  var enterAppT0=performance.now();
   checkMyProfile().then(function(hasProfile){
-    showStartupTiming("checkMyProfile resolved after "+Math.round(performance.now()-enterAppT0)+"ms");
     if(!hasProfile){
       var as=document.getElementById("auth-screen");if(as)as.style.display="none";
       var us=document.getElementById("username-screen");if(us)us.style.display="flex";
@@ -3192,9 +3167,7 @@ function enterApp(){
         }).catch(function(err){console.error("load cosmetics from profiles failed",err);});
     }
     pullCloudData().then(function(){
-      showStartupTiming("pullCloudData resolved after "+Math.round(performance.now()-enterAppT0)+"ms");
       render();
-      showStartupTiming("render() completed after "+Math.round(performance.now()-enterAppT0)+"ms");
       updateSidebarProfile();
       restoreCloudAudio();
       checkPendingInvitesPrompt();
