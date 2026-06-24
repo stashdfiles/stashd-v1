@@ -1107,9 +1107,7 @@ function getTrackPlaybackUrl(track){
       var data=null;
       try{data=text?JSON.parse(text):null;}catch(e){}
       if(!r.ok){
-        var failMsg="SIGN URL FAILED status="+r.status+" path="+track.storage_path+" body="+text.slice(0,200);
-        console.error(failMsg);
-        alert(failMsg);
+        console.error("SIGN URL FAILED status="+r.status+" path="+track.storage_path+" body="+text.slice(0,200));
       }
       return data;
     });
@@ -2882,11 +2880,7 @@ function stopMiniTick(){if(miniTick){clearInterval(miniTick);miniTick=null;}}
 /* ── RELOAD PROMPT ── */
 function showReloadPrompt(fid){
   var t=S.cur?gT(S.cur.fid,S.cur.tid):null;
-  if(t){
-    var msg="can't play '"+t.title+"' - storage_path="+t.storage_path+" filename="+t.filename+" src="+(t.src?t.src.slice(0,40):"none");
-    console.error(msg);
-    alert(msg);
-  }
+  if(t)console.error("can't play '"+t.title+"' - storage_path="+t.storage_path+" filename="+t.filename+" src="+(t.src?t.src.slice(0,40):"none"));
   var banner=document.getElementById("reload-banner");
   if(banner){banner.style.display="flex";banner.setAttribute("data-fid",fid||"");}
 }
