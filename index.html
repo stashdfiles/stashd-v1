@@ -1053,7 +1053,7 @@ function handleAudio(e,fid){
 }
 
 /* ── CLOUD AUDIO STORAGE ── */
-function uploadTrackAudio(file,trackId,trackRef){
+function uploadTrackAudio(file,trackId,trackRef,isRetry){
   if(!currentSession||!currentSession.user)return;
   var ext=file.name.split(".").pop();
   var path=currentSession.user.id+"/"+trackId+"."+ext;
@@ -1071,13 +1071,31 @@ function uploadTrackAudio(file,trackId,trackRef){
     if(res.ok){
       trackRef.storage_path=path;
       trackRef.uploading=false;
+      trackRef.uploadFailed=false;
       saveStashes();
       var badge=document.getElementById("upload-badge-"+trackId);if(badge)badge.remove();
+    }else if(!isRetry){
+      console.error("upload failed for track",trackId,res.status,res.text,"- retrying once");
+      uploadTrackAudio(file,trackId,trackRef,true);
     }else{
       trackRef.uploading=false;
+      trackRef.uploadFailed=true;
+      saveStashes();
       console.error("upload failed for track",trackId,res.status,res.text);
+      showToast("\""+trackRef.title+"\" couldn't be saved to the cloud - it may not survive a refresh");
     }
-  }).catch(function(err){trackRef.uploading=false;console.error("upload network error",err);});
+  }).catch(function(err){
+    if(!isRetry){
+      console.error("upload network error",err,"- retrying once");
+      uploadTrackAudio(file,trackId,trackRef,true);
+    }else{
+      trackRef.uploading=false;
+      trackRef.uploadFailed=true;
+      saveStashes();
+      console.error("upload network error",err);
+      showToast("\""+trackRef.title+"\" couldn't be saved to the cloud - it may not survive a refresh");
+    }
+  });
 }
 
 function getTrackPlaybackUrl(track){
@@ -1126,28 +1144,33 @@ function deleteCloudAudio(path){
 
 function restoreCloudAudio(){
   if(!currentSession||!currentSession.user)return;
-  var pending=[];
+  var allTracks=[];
   S.stashes.forEach(function(f){
     f.tracks.forEach(function(t){
-      if(t.storage_path&&!t.src){
-        pending.push(
-          getTrackPlaybackUrl(t).then(function(url){
-            if(url){t.src=url;return true;}
-            return false;
-          })
-        );
-      }
+      if(t.storage_path&&!t.src)allTracks.push(t);
     });
   });
-  if(pending.length){
-    Promise.all(pending).then(function(results){
-      var failed=results.filter(function(r){return !r;}).length;
-      if(failed>0){
-        console.error(failed+" track(s) failed to restore from cloud storage");
-      }
+  if(!allTracks.length)return;
+
+  var BATCH_SIZE=5;
+  var failed=0;
+  var idx=0;
+
+  function runBatch(){
+    var batch=allTracks.slice(idx,idx+BATCH_SIZE);
+    idx+=BATCH_SIZE;
+    if(!batch.length){
+      if(failed>0)console.error(failed+" track(s) failed to restore from cloud storage");
       render();
-    });
+      return;
+    }
+    Promise.all(batch.map(function(t){
+      return getTrackPlaybackUrl(t).then(function(url){
+        if(url)t.src=url;else failed++;
+      });
+    })).then(runBatch);
   }
+  runBatch();
 }
 function handleArt(e,fid){
   var file=e.target.files[0];if(!file)return;var f=gS(fid);if(!f)return;
@@ -1872,11 +1895,13 @@ function renderSettings(){
   restoreBtn.onclick=restoreData;
   var logoutBtn=document.createElement("button");logoutBtn.className="reset-btn";logoutBtn.style.cssText="background:none;border:0.5px solid #e24b4a;color:#e24b4a;padding:7px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit";
   logoutBtn.textContent="log out";logoutBtn.onclick=function(){if(confirm("log out of stashd?"))logOut();};
+  var checkBrokenBtn=document.createElement("button");checkBrokenBtn.className="reset-btn";
+  checkBrokenBtn.textContent="check for broken tracks";checkBrokenBtn.onclick=checkForBrokenTracks;
   var syncBtn=document.createElement("button");syncBtn.className="reset-btn";
   syncBtn.textContent="sync to cloud now";syncBtn.onclick=manualSyncNow;
   var pullBtn=document.createElement("button");pullBtn.className="reset-btn";
   pullBtn.textContent="pull from cloud now";pullBtn.onclick=manualPullNow;
-  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(pullBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
+  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(pullBtn);resetRow.appendChild(checkBrokenBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
   wrap.appendChild(sw);c.appendChild(wrap);
 }
 
@@ -3451,6 +3476,22 @@ function pushCloudSync(){
 
 function manualSyncNow(){
   doCloudSync(true);
+}
+
+function checkForBrokenTracks(){
+  var broken=[];
+  S.stashes.forEach(function(f){
+    f.tracks.forEach(function(t){
+      if(!t.storage_path&&!(t.src&&!t.src.startsWith("blob:"))){
+        broken.push(f.name+" — "+t.title);
+      }
+    });
+  });
+  if(!broken.length){
+    alert("no broken tracks found! everything has cloud backup.");
+    return;
+  }
+  alert(broken.length+" track(s) with no cloud backup (will be lost on refresh unless re-added):\n\n"+broken.join("\n"));
 }
 
 function manualPullNow(){
