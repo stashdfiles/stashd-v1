@@ -2408,6 +2408,7 @@ function handleReload(e){
       });
     });
   });
+  alert("reload attempt: files picked="+files.length+" ("+files.map(function(f){return f.name;}).join(", ")+") matched and reloaded="+reloaded);
   e.target.value="";
   hideReloadBanner();
   if(reloaded>0&&S.cur){
