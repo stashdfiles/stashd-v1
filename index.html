@@ -4144,31 +4144,42 @@ function handleTrackRowClick(e,t,trackList){
   playTrack(t.fid,t.id);
 }
 
+var shiftDragMouseMoveHandler=null;
+var shiftDragMouseUpHandler=null;
+
 function startShiftDragSelect(e,t,row){
   if(!e.shiftKey)return;
   e.preventDefault();
+
+  // clean up any previous drag listeners first, in case a prior drag never finished cleanly
+  if(shiftDragMouseMoveHandler){document.removeEventListener("mousemove",shiftDragMouseMoveHandler);shiftDragMouseMoveHandler=null;}
+  if(shiftDragMouseUpHandler){document.removeEventListener("mouseup",shiftDragMouseUpHandler);shiftDragMouseUpHandler=null;}
+
   shiftDragActive=true;
   shiftDragMode=selectedTracks[t.id]?"remove":"add";
   applyShiftDragToRow(t.id,row);
   lastClickedTrackId=t.id;
 
-  function onEnter(ev){
+  var lastHoveredTid=t.id;
+
+  shiftDragMouseMoveHandler=function(ev){
     if(!shiftDragActive)return;
-    var rowEl=ev.currentTarget;
-    var tid=parseInt(rowEl.id.replace("trow-",""));
-    applyShiftDragToRow(tid,rowEl);
-  }
-  function onUp(){
+    var target=ev.target.closest(".trow");
+    if(!target)return;
+    var tid=parseInt(target.id.replace("trow-",""));
+    if(tid===lastHoveredTid)return;
+    lastHoveredTid=tid;
+    applyShiftDragToRow(tid,target);
+  };
+  shiftDragMouseUpHandler=function(){
     shiftDragActive=false;
-    document.removeEventListener("mouseup",onUp);
-  }
-  document.addEventListener("mouseup",onUp);
-  // attach mouseenter to all rows for the duration of this drag
-  document.querySelectorAll(".trow").forEach(function(r){
-    r.addEventListener("mouseenter",onEnter);
-    var cleanup=function(){r.removeEventListener("mouseenter",onEnter);document.removeEventListener("mouseup",cleanup);};
-    document.addEventListener("mouseup",cleanup);
-  });
+    document.removeEventListener("mousemove",shiftDragMouseMoveHandler);
+    document.removeEventListener("mouseup",shiftDragMouseUpHandler);
+    shiftDragMouseMoveHandler=null;
+    shiftDragMouseUpHandler=null;
+  };
+  document.addEventListener("mousemove",shiftDragMouseMoveHandler);
+  document.addEventListener("mouseup",shiftDragMouseUpHandler);
 }
 
 function applyShiftDragToRow(tid,row){
