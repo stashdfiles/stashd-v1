@@ -486,12 +486,6 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 .rec-timer{font-size:24px;font-weight:600;color:var(--t1);letter-spacing:2px;margin:12px 0}
 
 </style>
-<div class="reload-banner" id="reload-banner">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-  <span>couldn't load this track's audio — try again, or reload the file manually</span>
-  <button class="reload-btn" onclick="triggerReload()">reload files</button>
-  <button class="reload-dismiss" onclick="hideReloadBanner()">dismiss</button>
-</div>
 <input type="file" id="greload" accept="audio/*" multiple style="display:none" onchange="handleReload(event)">
 <div class="auth-screen" id="auth-screen" style="display:none">
   <div class="auth-box">
@@ -2408,7 +2402,6 @@ function handleReload(e){
       });
     });
   });
-  alert("reload attempt: files picked="+files.length+" ("+files.map(function(f){return f.name;}).join(", ")+") matched and reloaded="+reloaded);
   e.target.value="";
   hideReloadBanner();
   if(reloaded>0&&S.cur){
@@ -2886,8 +2879,6 @@ function stopMiniTick(){if(miniTick){clearInterval(miniTick);miniTick=null;}}
 function showReloadPrompt(fid){
   var t=S.cur?gT(S.cur.fid,S.cur.tid):null;
   if(t)console.error("can't play '"+t.title+"' - storage_path="+t.storage_path+" filename="+t.filename+" src="+(t.src?t.src.slice(0,40):"none"));
-  var banner=document.getElementById("reload-banner");
-  if(banner){banner.style.display="flex";banner.setAttribute("data-fid",fid||"");}
 }
 
 /* ── GRADIENT BUILDER UI ── */
