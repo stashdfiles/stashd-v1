@@ -1904,13 +1904,15 @@ function renderSettings(){
   restoreBtn.onclick=restoreData;
   var logoutBtn=document.createElement("button");logoutBtn.className="reset-btn";logoutBtn.style.cssText="background:none;border:0.5px solid #e24b4a;color:#e24b4a;padding:7px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit";
   logoutBtn.textContent="log out";logoutBtn.onclick=function(){if(confirm("log out of stashd?"))logOut();};
+  var clearImportedBtn=document.createElement("button");clearImportedBtn.className="reset-btn";
+  clearImportedBtn.textContent="clear 'imported' labels";clearImportedBtn.onclick=clearImportedLabels;
   var checkBrokenBtn=document.createElement("button");checkBrokenBtn.className="reset-btn";
   checkBrokenBtn.textContent="check for broken tracks";checkBrokenBtn.onclick=checkForBrokenTracks;
   var syncBtn=document.createElement("button");syncBtn.className="reset-btn";
   syncBtn.textContent="sync to cloud now";syncBtn.onclick=manualSyncNow;
   var pullBtn=document.createElement("button");pullBtn.className="reset-btn";
   pullBtn.textContent="pull from cloud now";pullBtn.onclick=manualPullNow;
-  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(pullBtn);resetRow.appendChild(checkBrokenBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
+  resetRow.appendChild(resetBtn);resetRow.appendChild(backupBtn);resetRow.appendChild(restoreBtn);resetRow.appendChild(syncBtn);resetRow.appendChild(pullBtn);resetRow.appendChild(checkBrokenBtn);resetRow.appendChild(clearImportedBtn);resetRow.appendChild(logoutBtn);sw.appendChild(resetRow);
   wrap.appendChild(sw);c.appendChild(wrap);
 }
 
@@ -3504,6 +3506,17 @@ function fixTrackAudio(fid,tid){
     showToast('fixing "'+t.title+'" - uploading to cloud...');
   };
   input.click();
+}
+
+function clearImportedLabels(){
+  var count=0;
+  S.stashes.forEach(function(f){
+    f.tracks.forEach(function(t){
+      if(t.artist==="imported"){t.artist="";count++;}
+    });
+  });
+  if(count>0){saveStashes();render();showToast('cleared "imported" from '+count+' track(s)');}
+  else{showToast("no tracks needed fixing");}
 }
 
 function checkForBrokenTracks(){
