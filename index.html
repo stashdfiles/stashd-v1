@@ -1036,7 +1036,7 @@ function handleAudio(e,fid){
     var url=URL.createObjectURL(file);
     var name=file.name.replace(/\.[^.]+$/,"").replace(/[_-]/g," ").toLowerCase();
     var trackId=S.nid++;
-    var newTrack={id:trackId,title:name,artist:"imported",dur:"—",src:url,filename:file.name,notes:"",uploading:true};
+    var newTrack={id:trackId,title:name,artist:"",dur:"—",src:url,filename:file.name,notes:"",uploading:true};
     target.tracks.push(newTrack);
     uploadTrackAudio(file,trackId,newTrack);
     (function(track,blobUrl){
@@ -1548,7 +1548,7 @@ function renderSharedStashView(){
 
     var info=document.createElement("div");info.className="trow-info";
     var titleEl=document.createElement("div");titleEl.className="trow-title-input";titleEl.style.cssText="background:none;border:none;color:var(--t1);font-size:13px;font-weight:500;pointer-events:none";titleEl.textContent=t.title;
-    var by=document.createElement("div");by.className="trow-by";by.textContent=t.artist||"imported";
+    var by=document.createElement("div");by.className="trow-by";by.textContent=t.artist||"";
     info.appendChild(titleEl);info.appendChild(by);
 
     var dur=document.createElement("div");dur.className="trow-dur";dur.textContent=t.dur||"—";
@@ -2396,7 +2396,7 @@ function handleFolder(e){
     var url=URL.createObjectURL(file);
     var name=file.name.replace(/\.[^.]+$/,"").replace(/[_-]/g," ").toLowerCase();
     fileCache[file.name]=file;
-    ns.tracks.push({id:S.nid++,title:name,artist:"imported",dur:"\u2014",src:url,filename:file.name,notes:""});
+    ns.tracks.push({id:S.nid++,title:name,artist:"",dur:"\u2014",src:url,filename:file.name,notes:""});
   });
   S.stashes.push(ns);
   S.activeStash=ns.id;
