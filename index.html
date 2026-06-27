@@ -1294,8 +1294,7 @@ function mkTrow(t,idx,trackList){
   };
   titleInp.onblur=function(){renameTrack(t.fid,t.id);};
   titleInp.onkeydown=function(e){if(e.key==="Enter")this.blur();};
-  var by=document.createElement("div");by.className="trow-by";by.textContent=(t.artist||"—")+(t.fn?" · "+t.fn:"");
-  info.appendChild(titleInp);info.appendChild(by);
+  info.appendChild(titleInp);
 
   var dur=document.createElement("div");dur.className="trow-dur";dur.id="dur-"+t.id;dur.textContent=t.dur;
 
@@ -1548,8 +1547,7 @@ function renderSharedStashView(){
 
     var info=document.createElement("div");info.className="trow-info";
     var titleEl=document.createElement("div");titleEl.className="trow-title-input";titleEl.style.cssText="background:none;border:none;color:var(--t1);font-size:13px;font-weight:500;pointer-events:none";titleEl.textContent=t.title;
-    var by=document.createElement("div");by.className="trow-by";by.textContent=t.artist||"";
-    info.appendChild(titleEl);info.appendChild(by);
+    info.appendChild(titleEl);
 
     var dur=document.createElement("div");dur.className="trow-dur";dur.textContent=t.dur||"—";
 
