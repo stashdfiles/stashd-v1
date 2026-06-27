@@ -751,6 +751,14 @@ body.has-bg-image .app{background:rgba(0,0,0,.55)}
 </div>
 
 <audio id="aud"></audio><script>
+window.addEventListener("error",function(e){
+  var box=document.createElement("div");
+  box.style.cssText="position:fixed;top:0;left:0;right:0;background:#3a0a0a;color:#fff;padding:14px;font-family:monospace;font-size:13px;z-index:999999;white-space:pre-wrap";
+  box.textContent="FATAL ERROR: "+e.message+" at "+e.filename+":"+e.lineno+":"+e.colno;
+  document.body.appendChild(box);
+  var loader=document.getElementById("boot-loader");if(loader)loader.remove();
+});
+
 var S = {
   page:"home", activeStash:null, cur:null, playing:false,
   shuf:false, rep:false, eff:"none", speed:1,
