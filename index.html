@@ -1082,7 +1082,6 @@ function uploadTrackAudio(file,trackId,trackRef,isRetry){
       trackRef.uploadFailed=true;
       saveStashes();
       console.error("upload failed for track",trackId,res.status,res.text);
-      alert("UPLOAD FAILED status="+res.status+" body="+res.text.slice(0,300));
       showToast("\""+trackRef.title+"\" couldn't be saved to the cloud - it may not survive a refresh");
     }
   }).catch(function(err){
