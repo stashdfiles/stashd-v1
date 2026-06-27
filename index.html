@@ -1301,6 +1301,15 @@ function mkTrow(t,idx,trackList){
 
   var acts=document.createElement("div");acts.className="trow-acts";
 
+  // fix audio button - only shows when this track has no working cloud storage
+  if(!t.storage_path){
+    var fixBtn=document.createElement("button");fixBtn.className="tact";fixBtn.title="this song needs to be re-added - click to fix";
+    fixBtn.style.color="#e8a23a";
+    fixBtn.innerHTML="<svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='10'/><line x1='12' y1='8' x2='12' y2='12'/><line x1='12' y1='16' x2='12.01' y2='16'/></svg>";
+    fixBtn.onclick=function(e){e.stopPropagation();fixTrackAudio(t.fid,t.id);};
+    acts.appendChild(fixBtn);
+  }
+
   // note button
   var noteBtn=document.createElement("button");noteBtn.className="note-btn"+(t.notes?" has-note":"");noteBtn.title=t.notes?"edit note":"add note";
   noteBtn.innerHTML="<svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><path d='M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7'/><path d='M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z'/></svg>";
@@ -3476,6 +3485,25 @@ function pushCloudSync(){
 
 function manualSyncNow(){
   doCloudSync(true);
+}
+
+function fixTrackAudio(fid,tid){
+  var input=document.createElement("input");
+  input.type="file";input.accept="audio/*";
+  input.onchange=function(e){
+    var file=e.target.files[0];if(!file)return;
+    var t=gT(fid,tid);if(!t)return;
+    t.filename=file.name;
+    fileCache[file.name]=file;
+    t.src=URL.createObjectURL(file);
+    t.uploading=true;
+    render();
+    if(currentSession&&currentSession.user){
+      uploadTrackAudio(file,tid,t);
+    }
+    showToast('fixing "'+t.title+'" - uploading to cloud...');
+  };
+  input.click();
 }
 
 function checkForBrokenTracks(){
